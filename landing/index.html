@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Oakedex – Your digital Pokémon TCG binder. Collect by Pokémon, track every printing, and manage Master and Single Pokémon collections." />
+  <title>Oakedex – Digital Pokémon TCG Binder</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-inner">
+      <a href="#" class="logo-link" aria-label="Oakedex home">
+        <img src="assets/oakedex-logo.svg" alt="Oakedex" class="logo-img" />
+      </a>
+      <nav class="nav">
+        <a href="#features">Features</a>
+        <a href="#screens">Screens</a>
+        <a href="#signup" class="nav-cta">Get notified</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="hero-content">
+        <h1 class="hero-title">Your Pokémon cards.<br />One binder.</h1>
+        <p class="hero-lead">Collect by Pokémon, not by set. Track every printing, variant, and language in a digital binder that feels like the real thing.</p>
+        <div class="hero-cta">
+          <a href="#signup" class="btn btn-primary">Get notified</a>
+          <a href="#features" class="btn btn-ghost">See how it works</a>
+        </div>
+      </div>
+      <div class="hero-visual">
+        <img src="assets/screenshots/collections.png" alt="Oakedex Collections – swipe between binders" class="hero-screenshot" />
+      </div>
+    </section>
+
+    <section id="features" class="section features">
+      <div class="container">
+        <h2 class="section-title">Built for collectors</h2>
+        <p class="section-lead">Two ways to collect: one card per Pokémon, or every version of your favorite.</p>
+        <ul class="feature-grid">
+          <li class="feature-card">
+            <div class="feature-icon" aria-hidden="true">◇</div>
+            <h3>Collect Them All</h3>
+            <p>One slot per Pokémon. Pick any printing and mark the exact variant you have—normal, reverse, holo, or 1st edition.</p>
+          </li>
+          <li class="feature-card">
+            <div class="feature-icon" aria-hidden="true">◆</div>
+            <h3>Single Pokémon binders</h3>
+            <p>Create a binder for one Pokémon and track every printing across sets and languages. See progress at a glance.</p>
+          </li>
+          <li class="feature-card">
+            <div class="feature-icon" aria-hidden="true">▣</div>
+            <h3>Card Dex</h3>
+            <p>Search the full card database. Filter by language, see all versions, and add missing cards to your collection.</p>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="screens" class="section screens">
+      <div class="container">
+        <h2 class="section-title">See it in action</h2>
+        <div class="screens-grid">
+          <figure class="screen-card">
+            <img src="assets/screenshots/binder-empty.png" alt="Empty binder – start a new collection" />
+            <figcaption>Start a new binder or swipe between collections</figcaption>
+          </figure>
+          <figure class="screen-card">
+            <img src="assets/screenshots/collection-master.png" alt="Master collection – Collect Them All with progress" />
+            <figcaption>Master collection with progress and search</figcaption>
+          </figure>
+          <figure class="screen-card">
+            <img src="assets/screenshots/single-pokemon.png" alt="Single Pokémon collection – Voltorb, all printings" />
+            <figcaption>Single Pokémon binder – every printing, variant, and language</figcaption>
+          </figure>
+          <figure class="screen-card">
+            <img src="assets/screenshots/card-dex.png" alt="Card Dex – search and filter by language" />
+            <figcaption>Card Dex – search cards and filter by language</figcaption>
+          </figure>
+          <figure class="screen-card">
+            <img src="assets/screenshots/profile.png" alt="Profile – binders and collection overview" />
+            <figcaption>Profile – all binders and collection progress</figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <section id="signup" class="section signup">
+      <div class="container">
+        <h2 class="section-title">Stay in the loop</h2>
+        <p class="section-lead">Get notified about Oakedex news and beta testing. No spam—we’ll only email you when there’s something worth sharing.</p>
+        <form id="signup-form" class="signup-form" action="https://formspree.io/f/mbdapoel" method="POST" novalidate>
+          <input type="hidden" name="_subject" value="Oakedex signup" />
+          <div class="signup-fields">
+            <label for="email" class="visually-hidden">Email address</label>
+            <input
+              type="email"
+              id="email"
+              name="email"
+              placeholder="you@example.com"
+              required
+              autocomplete="email"
+              class="signup-input"
+            />
+            <button type="submit" class="btn btn-primary signup-submit" id="signup-submit">Notify me</button>
+          </div>
+          <label class="signup-checkbox">
+            <input type="checkbox" name="beta" value="yes" />
+            <span>I’m interested in beta testing</span>
+          </label>
+          <p id="signup-message" class="signup-message" aria-live="polite" hidden></p>
+        </form>
+      </div>
+    </section>
+
+    <section id="download" class="section cta">
+      <div class="container cta-inner">
+        <img src="assets/oakedex-logo.svg" alt="" class="cta-logo" aria-hidden="true" />
+        <h2 class="cta-title">Ready to organize your collection?</h2>
+        <p class="cta-text">Oakedex is available on Android and iOS. Data stays on your device or syncs with your account.</p>
+        <div class="cta-buttons">
+          <a href="https://play.google.com/store/apps/details?id=com.failuremtg.oakedex" class="btn btn-primary btn-store" target="_blank" rel="noopener noreferrer">Google Play</a>
+          <a href="https://www.oakedex.com" class="btn btn-ghost" target="_blank" rel="noopener noreferrer">Visit oakedex.com</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-inner">
+      <p class="footer-brand">Oakedex</p>
+      <p class="footer-legal">Pokémon and Pokémon TCG are © of The Pokémon Company. This app is not affiliated with or endorsed by them.</p>
+    </div>
+  </footer>
+  <script src="signup.js"></script>
+</body>
+</html>

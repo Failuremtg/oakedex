@@ -1,0 +1,46 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Each user can only read/write their own data (collections + binderOrder)
+    match /users/{userId}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    // Admin card images: anyone can read (all users see images), only signed-in users can write (admin uploads)
+    match /cardImages/{cardId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+    // Who is an admin (emails/uids list). Read by all so app can check; write only via Firebase Console or Admin SDK.
+    match /config/admins {
+      allow read: if true;
+      allow write: if false;
+    }
+    // Admin binder config: default card per slot and custom cards. Read by all; write by admins only.
+    match /config/binderDefaults {
+      allow read: if true;
+      allow write: if request.auth != null
+        && (request.auth.uid in get(/databases/$(database)/documents/config/admins).data.get('uids', [])
+             || request.auth.token.email in get(/databases/$(database)/documents/config/admins).data.get('emails', []));
+    }
+    match /config/customCards {
+      allow read: if true;
+      allow write: if request.auth != null
+        && (request.auth.uid in get(/databases/$(database)/documents/config/admins).data.get('uids', [])
+             || request.auth.token.email in get(/databases/$(database)/documents/config/admins).data.get('emails', []));
+    }
+    // Excluded card versions (admin): hide a card version for all users. Read by all; write by admins only.
+    match /config/excludedCardVersions {
+      allow read: if true;
+      allow write: if request.auth != null
+        && (request.auth.uid in get(/databases/$(database)/documents/config/admins).data.get('uids', [])
+             || request.auth.token.email in get(/databases/$(database)/documents/config/admins).data.get('emails', []));
+    }
+    // Global binder slots (admin import): read by all; write by admins only.
+    match /config/globalBinderSlots {
+      allow read: if true;
+      allow write: if request.auth != null
+        && (request.auth.uid in get(/databases/$(database)/documents/config/admins).data.get('uids', [])
+             || request.auth.token.email in get(/databases/$(database)/documents/config/admins).data.get('emails', []));
+    }
+  }
+}

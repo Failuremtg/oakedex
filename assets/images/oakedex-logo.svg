@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Layer_1" data-name="Layer 1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 606.5 168.84">
+  <defs>
+    <style>
+      .cls-1 {
+        fill: #114c5c;
+      }
+
+      .cls-1, .cls-2, .cls-3, .cls-4, .cls-5 {
+        stroke-miterlimit: 10;
+      }
+
+      .cls-1, .cls-6, .cls-3, .cls-4, .cls-5 {
+        stroke: #231f20;
+        stroke-width: 3px;
+      }
+
+      .cls-7 {
+        fill: #fff;
+      }
+
+      .cls-2, .cls-5 {
+        fill: #ed1c24;
+      }
+
+      .cls-6 {
+        font-family: Lato-BlackItalic, Lato;
+        font-size: 120px;
+        font-style: italic;
+        font-weight: 800;
+      }
+
+      .cls-3 {
+        fill: #ffcf1c;
+      }
+
+      .cls-4 {
+        fill: #6a449b;
+      }
+    </style>
+  </defs>
+  <rect class="cls-1" x="223.22" y="15.43" width="63" height="88" transform="translate(4.41 135.32) rotate(-30)"/>
+  <rect class="cls-3" x="322.84" y="15.43" width="63" height="88" transform="translate(77.19 -169.21) rotate(30)"/>
+  <rect class="cls-4" x="273.56" y="1.5" width="63" height="88"/>
+  <path class="cls-5" d="M60.5,35.32C27.92,35.32,1.5,61.73,1.5,94.32s26.42,59,59,59,59-26.42,59-59-26.42-59-59-59ZM60.5,132.82c-21.26,0-38.5-17.24-38.5-38.5s17.24-38.5,38.5-38.5,38.5,17.24,38.5,38.5-17.24,38.5-38.5,38.5Z"/>
+  <text class="cls-6" transform="translate(119.5 137.34)"><tspan class="cls-2" x="0" y="0">AK</tspan><tspan class="cls-7" x="158.76" y="0">EDEX</tspan></text>
+</svg>
