@@ -105,8 +105,8 @@ body {
   grid-template-columns: 1fr 1fr;
   gap: 48px;
   align-items: center;
-  min-height: 85vh;
-  padding: 48px 24px 64px;
+  min-height: 80vh;
+  padding: 32px 24px 56px;
   max-width: 1100px;
   margin: 0 auto;
 }
@@ -129,7 +129,7 @@ body {
 }
 
 .hero-lead {
-  margin: 0 0 32px;
+  margin: 0 0 24px;
   font-size: 1.15rem;
   color: var(--text-muted);
   max-width: 420px;
@@ -152,6 +152,94 @@ body {
   .hero-cta {
     justify-content: center;
   }
+}
+
+/* Hero signup (form in hero) */
+.hero-signup {
+  margin: 0 0 24px;
+  max-width: 460px;
+}
+
+@media (max-width: 900px) {
+  .hero-signup {
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+
+.hero-signup-label {
+  margin: 0 0 12px;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.hero-signup .signup-input--hero {
+  width: 100%;
+  padding: 18px 22px;
+  font-size: 1.1rem;
+  font-weight: 500;
+  background: var(--bg-elevated);
+  border: 2px solid rgba(106, 68, 155, 0.5);
+  border-radius: var(--radius);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.hero-signup .signup-input--hero::placeholder {
+  color: var(--text-muted);
+}
+
+.hero-signup .signup-input--hero:hover {
+  border-color: rgba(106, 68, 155, 0.7);
+}
+
+.hero-signup .signup-input--hero:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(106, 68, 155, 0.3);
+  outline: none;
+}
+
+.hero-signup-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 14px 18px;
+  background: rgba(106, 68, 155, 0.12);
+  border: 1px solid rgba(106, 68, 155, 0.35);
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--text);
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.hero-signup-checkbox:hover {
+  background: rgba(106, 68, 155, 0.18);
+  border-color: rgba(106, 68, 155, 0.5);
+}
+
+.hero-signup-checkbox input {
+  width: 22px;
+  height: 22px;
+  accent-color: var(--primary);
+  flex-shrink: 0;
+}
+
+.hero-scroll-hint {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.hero-scroll-link {
+  color: var(--text-muted);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.hero-scroll-link:hover {
+  color: var(--primary);
 }
 
 .hero-visual {
@@ -255,16 +343,21 @@ body {
 }
 
 .feature-icon {
-  width: 44px;
-  height: 44px;
+  width: 48px;
+  height: 48px;
   display: flex;
   align-items: center;
   justify-content: center;
   background: rgba(106, 68, 155, 0.2);
-  color: var(--secondary);
   border-radius: 10px;
-  font-size: 20px;
   margin-bottom: 16px;
+  overflow: hidden;
+}
+
+.feature-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .feature-card h3 {
@@ -274,6 +367,63 @@ body {
 }
 
 .feature-card p {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--text-muted);
+  line-height: 1.55;
+}
+
+/* Right in your pocket */
+.pocket {
+  background: var(--bg-elevated);
+  border-top: 1px solid var(--border);
+}
+
+.pocket-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 48px;
+  align-items: start;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+@media (max-width: 700px) {
+  .pocket-grid {
+    grid-template-columns: 1fr;
+    gap: 40px;
+  }
+}
+
+.pocket-item {
+  text-align: center;
+}
+
+.pocket-visual {
+  margin-bottom: 20px;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.3);
+  max-width: 280px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.pocket-visual img {
+  width: 100%;
+  height: auto;
+  display: block;
+  vertical-align: top;
+}
+
+.pocket-title {
+  margin: 0 0 8px;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.pocket-text {
   margin: 0;
   font-size: 0.95rem;
   color: var(--text-muted);
@@ -315,7 +465,53 @@ body {
   text-align: center;
 }
 
-/* CTA */
+/* Demo iframes (See it in action – inline like screenshots) */
+.screens-grid-demos {
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 24px;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.screen-card-demo {
+  padding: 0;
+  overflow: hidden;
+  max-width: 340px;
+  justify-self: center;
+  display: block;
+}
+
+.screen-card-demo .demo-frame-wrap {
+  position: relative;
+  width: 100%;
+  min-height: 420px;
+  padding-bottom: 155%;
+  aspect-ratio: 1 / 1.55;
+  background: var(--charcoal);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.screen-card-demo .demo-iframe {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border: none;
+  display: block;
+}
+
+.screens-beta-note {
+  margin: -24px auto 24px;
+  max-width: 560px;
+  text-align: center;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+/* Sign-up */
 .cta {
   background: linear-gradient(180deg, rgba(106, 68, 155, 0.12) 0%, transparent 100%);
   border-top: 1px solid var(--border);
@@ -326,32 +522,200 @@ body {
   padding: 48px 24px;
 }
 
-.cta-logo {
-  height: 48px;
-  width: auto;
-  margin: 0 auto 24px;
-  opacity: 0.95;
+/* CTA carousel */
+.cta-carousel-wrap {
+  margin-bottom: 32px;
+}
+
+.cta-carousel-outer {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 0 8px;
+}
+
+.cta-carousel-viewport {
+  width: 100%;
+  max-width: 520px;
+  overflow: hidden;
+  perspective: 1200px;
+  flex-shrink: 0;
+}
+
+.cta-carousel-track {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  transition: transform 0.5s ease;
+  will-change: transform;
+  transform-style: preserve-3d;
+}
+
+.cta-carousel-slide {
+  flex-shrink: 0;
+  width: 260px;
+  aspect-ratio: 9 / 19.5;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--charcoal);
+  transition: transform 0.5s ease, opacity 0.5s ease;
+  transform-origin: center center;
+  transform-style: preserve-3d;
+}
+
+.cta-carousel-slide img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.cta-carousel-slide--left {
+  transform: scale(0.9) rotateY(10deg);
+  opacity: 0.85;
+  z-index: 0;
+}
+
+.cta-carousel-slide--center {
+  transform: scale(1) rotateY(0);
+  opacity: 1;
+  z-index: 2;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+}
+
+.cta-carousel-slide--right {
+  transform: scale(0.9) rotateY(-10deg);
+  opacity: 0.85;
+  z-index: 0;
+}
+
+.cta-carousel-arrow {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-size: 28px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s, color 0.2s, transform 0.2s;
+}
+
+.cta-carousel-arrow:hover {
+  background: rgba(106, 68, 155, 0.6);
+  color: #fff;
+}
+
+.cta-carousel-arrow:active {
+  transform: scale(0.96);
+}
+
+@media (max-width: 380px) {
+  .cta-carousel-outer {
+    gap: 8px;
+    padding: 0 4px;
+  }
+  .cta-carousel-arrow {
+    width: 36px;
+    height: 36px;
+    font-size: 22px;
+  }
+  .cta-carousel-viewport {
+    max-width: 320px;
+  }
+  .cta-carousel-slide {
+    width: 220px;
+  }
+}
+
+.cta-carousel-arrow span {
+  display: block;
+  margin-top: -2px;
+}
+
+.cta-carousel-dots {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.cta-carousel-dot {
+  width: 8px;
+  height: 8px;
+  padding: 0;
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.25s ease, transform 0.25s ease, border-color 0.25s ease;
+}
+
+.cta-carousel-dot:hover {
+  border-color: rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.cta-carousel-dot--active {
+  width: 12px;
+  height: 12px;
+  background: #fff;
+  border-color: #fff;
+  transform: scale(1);
 }
 
 .cta-title {
-  margin: 0 0 12px;
+  margin: 0 0 24px;
   font-size: clamp(1.5rem, 3vw, 2rem);
   font-weight: 700;
 }
 
-.cta-text {
-  margin: 0 0 28px;
-  color: var(--text-muted);
-  max-width: 480px;
-  margin-left: auto;
-  margin-right: auto;
+.cta-signup {
+  max-width: 360px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
-.cta-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  justify-content: center;
+.cta-signup .signup-input--cta {
+  width: 100%;
+  padding: 14px 18px;
+  font-size: 1rem;
+  text-align: center;
+  background: var(--bg-elevated);
+  border: 2px solid rgba(106, 68, 155, 0.5);
+  border-radius: var(--radius);
+}
+
+.cta-signup .signup-input--cta::placeholder {
+  color: var(--text-muted);
+}
+
+.cta-signup .signup-input--cta:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(106, 68, 155, 0.3);
+  outline: none;
+}
+
+.cta-signup-btn {
+  width: 100%;
+  padding: 14px 24px;
+  font-size: 1rem;
+}
+
+.cta-signup .signup-message {
+  margin: 0;
 }
 
 /* Sign-up */

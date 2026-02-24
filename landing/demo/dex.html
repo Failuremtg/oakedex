@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Card Dex – Oakedex demo</title>
+  <link rel="stylesheet" href="demo.css" />
+</head>
+<body class="demo-page-dex">
+  <header class="demo-header" id="demo-header">
+    <a href="../index.html#screens" id="back-link">← Back to Oakedex</a>
+    <span class="demo-badge">Demo</span>
+  </header>
+  <main class="demo-container">
+    <h1 class="demo-title">Card Dex</h1>
+    <p class="demo-subtitle">Search cards and see all versions</p>
+    <div class="demo-dex-search-row">
+      <input type="text" id="search" placeholder="Card or Pokémon name…" autocomplete="off" />
+      <button type="button" class="demo-dex-search-btn" id="btn-search">Search</button>
+    </div>
+    <div class="demo-lang-row">
+      <p class="demo-lang-label">Languages:</p>
+      <div class="demo-lang-wrap" id="lang-wrap"></div>
+    </div>
+    <div id="message" class="demo-error" hidden></div>
+    <div id="loading" class="demo-loading" hidden>Loading…</div>
+    <div id="hint" class="demo-hint">Pick languages and search to see cards.</div>
+    <div id="grid" class="demo-card-grid" style="display:none;"></div>
+  </main>
+  <script>
+    (function () {
+      if (window !== window.top) {
+        var h = document.getElementById('demo-header');
+        if (h) h.style.display = 'none';
+      }
+      var API = 'https://api.tcgdex.net/v2';
+      var SET_IDS = ['base1', 'base2', 'base3', 'base4'];
+      var MIN_RESULTS = 10;
+      var MAX_RESULTS = 30;
+      var LANGS = [
+        { id: 'en', label: 'English' },
+        { id: 'ja', label: 'Japanese' },
+        { id: 'fr', label: 'French' },
+        { id: 'de', label: 'German' },
+        { id: 'es', label: 'Spanish' },
+      ];
+      var grid = document.getElementById('grid');
+      var searchInput = document.getElementById('search');
+      var loadingEl = document.getElementById('loading');
+      var messageEl = document.getElementById('message');
+      var hintEl = document.getElementById('hint');
+
+      var selectedLangs = ['en'];
+
+      function cardImageUrl(url) {
+        if (!url) return '';
+        return (url.replace(/\/$/, '') + '/high.png');
+      }
+
+      function escapeHtml(s) {
+        var d = document.createElement('div');
+        d.textContent = s;
+        return d.innerHTML;
+      }
+
+      var langWrap = document.getElementById('lang-wrap');
+      LANGS.forEach(function (opt) {
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'demo-lang-chip' + (selectedLangs.indexOf(opt.id) !== -1 ? ' on' : '');
+        btn.textContent = opt.label;
+        btn.dataset.lang = opt.id;
+        btn.addEventListener('click', function () {
+          var i = selectedLangs.indexOf(opt.id);
+          if (i === -1) selectedLangs.push(opt.id);
+          else selectedLangs.splice(i, 1);
+          document.querySelectorAll('.demo-lang-chip').forEach(function (b) {
+            b.classList.toggle('on', selectedLangs.indexOf(b.dataset.lang) !== -1);
+          });
+        });
+        langWrap.appendChild(btn);
+      });
+
+      document.getElementById('btn-search').addEventListener('click', search);
+      searchInput.addEventListener('keydown', function (e) { if (e.key === 'Enter') search(); });
+
+      function search() {
+        var q = searchInput.value.trim().toLowerCase();
+        if (!q) { hintEl.hidden = false; grid.style.display = 'none'; return; }
+        if (selectedLangs.length === 0) {
+          messageEl.textContent = 'Select at least one language.';
+          messageEl.hidden = false;
+          return;
+        }
+        messageEl.hidden = true;
+        hintEl.hidden = true;
+        loadingEl.hidden = false;
+        grid.style.display = 'grid';
+        grid.innerHTML = '';
+
+        var all = [];
+        var setsToFetch = selectedLangs.length * SET_IDS.length;
+        var done = 0;
+
+        function tryRender() {
+          done++;
+          if (done < setsToFetch) return;
+          var matching = all.filter(function (c) {
+            return c.name && c.name.toLowerCase().indexOf(q) !== -1;
+          });
+          if (matching.length < MIN_RESULTS) {
+            var byName = {};
+            all.forEach(function (c) {
+              if (!byName[c.name]) byName[c.name] = c;
+            });
+            var extra = Object.values(byName).filter(function (c) {
+              return c.name && c.name.toLowerCase().indexOf(q) === -1;
+            }).slice(0, Math.max(0, MIN_RESULTS - matching.length));
+            matching = matching.concat(extra);
+          }
+          render(matching.slice(0, MAX_RESULTS));
+        }
+
+        selectedLangs.forEach(function (lang) {
+          SET_IDS.forEach(function (setId) {
+            fetch(API + '/' + lang + '/sets/' + setId)
+              .then(function (r) { return r.json(); })
+              .then(function (data) {
+                (data.cards || []).forEach(function (c) {
+                  all.push({
+                    id: c.id,
+                    name: c.name,
+                    localId: c.localId || c.id.split('-').pop(),
+                    image: c.image,
+                    lang: lang,
+                    setName: data.name || setId
+                  });
+                });
+                tryRender();
+              })
+              .catch(function () { tryRender(); });
+          });
+        });
+      }
+
+      function render(list) {
+        loadingEl.hidden = true;
+        grid.innerHTML = '';
+        (list || []).forEach(function (card) {
+          var div = document.createElement('div');
+          div.className = 'demo-card demo-dex-card';
+          var imgUrl = cardImageUrl(card.image);
+          var langLabel = (LANGS.find(function (l) { return l.id === card.lang; }) || {}).label || card.lang;
+          div.innerHTML =
+            '<img src="' + (imgUrl || '') + '" alt="" loading="lazy" />' +
+            '<p class="demo-dex-card-name">' + escapeHtml(card.name) + '</p>' +
+            '<p class="demo-dex-card-meta">' + escapeHtml(card.setName || card.id) + ' #' + escapeHtml(card.localId) + '</p>' +
+            '<span class="demo-dex-lang-badge">' + escapeHtml(langLabel) + '</span>';
+          grid.appendChild(div);
+        });
+      }
+    })();
+  </script>
+</body>
+</html>

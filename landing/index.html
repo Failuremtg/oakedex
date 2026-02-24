@@ -18,21 +18,37 @@
       </a>
       <nav class="nav">
         <a href="#features">Features</a>
-        <a href="#screens">Screens</a>
+        <a href="#pocket">In your pocket</a>
+        <a href="#screens">Try a demo</a>
         <a href="#signup" class="nav-cta">Get notified</a>
       </nav>
     </div>
   </header>
 
   <main>
-    <section class="hero">
+    <section id="signup" class="hero">
       <div class="hero-content">
-        <h1 class="hero-title">Your Pokémon cards.<br />One binder.</h1>
-        <p class="hero-lead">Collect by Pokémon, not by set. Track every printing, variant, and language in a digital binder that feels like the real thing.</p>
-        <div class="hero-cta">
-          <a href="#signup" class="btn btn-primary">Get notified</a>
-          <a href="#features" class="btn btn-ghost">See how it works</a>
-        </div>
+        <h1 class="hero-title">Keep track of your Master Collections, right in your pocket.</h1>
+        <p class="hero-lead">Focus on what's important for your Master collection—collect all Pokémon, all cards of a specific Pokémon, or even keep track of your Master set completions.</p>
+        <form id="signup-form" class="signup-form hero-signup" action="https://formspree.io/f/mbdapoel" method="POST" novalidate>
+          <input type="hidden" name="_subject" value="Oakedex signup" />
+          <p class="hero-signup-label">Get notified when we launch</p>
+          <label for="email" class="visually-hidden">Email for news and beta</label>
+          <input
+            type="email"
+            id="email"
+            name="email"
+            placeholder="Email for news & beta"
+            required
+            autocomplete="email"
+            class="signup-input signup-input--hero"
+          />
+          <label class="signup-checkbox hero-signup-checkbox">
+            <input type="checkbox" name="beta" value="yes" />
+            <span>I’m interested in beta testing</span>
+          </label>
+          <p id="signup-message" class="signup-message" aria-live="polite" hidden></p>
+        </form>
       </div>
       <div class="hero-visual">
         <img src="assets/screenshots/collections.png" alt="Oakedex Collections – swipe between binders" class="hero-screenshot" />
@@ -41,93 +57,136 @@
 
     <section id="features" class="section features">
       <div class="container">
-        <h2 class="section-title">Built for collectors</h2>
-        <p class="section-lead">Two ways to collect: one card per Pokémon, or every version of your favorite.</p>
+        <h2 class="section-title">Built for Master Collectors</h2>
+        <p class="section-lead">Three ways to collect: all the Pokémon, every version of a chosen Pokémon, or your favorite set.</p>
         <ul class="feature-grid">
           <li class="feature-card">
-            <div class="feature-icon" aria-hidden="true">◇</div>
+            <div class="feature-icon">
+              <img src="https://raw.githubusercontent.com/msikma/pokesprite/master/items-outline/ball/master.png" alt="" width="44" height="44" />
+            </div>
             <h3>Collect Them All</h3>
-            <p>One slot per Pokémon. Pick any printing and mark the exact variant you have—normal, reverse, holo, or 1st edition.</p>
+            <p>Make your own master dex with all 1025 Pokémon, or even create a Grandmaster Collection with all the forms and variants.</p>
           </li>
           <li class="feature-card">
-            <div class="feature-icon" aria-hidden="true">◆</div>
+            <div class="feature-icon">
+              <img src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/25.png" alt="" width="44" height="44" />
+            </div>
             <h3>Single Pokémon binders</h3>
-            <p>Create a binder for one Pokémon and track every printing across sets and languages. See progress at a glance.</p>
+            <p>Create a binder with your favorite Pokémon and track all printings of that Pokémon, and even printings across multiple languages.</p>
           </li>
           <li class="feature-card">
-            <div class="feature-icon" aria-hidden="true">▣</div>
-            <h3>Card Dex</h3>
-            <p>Search the full card database. Filter by language, see all versions, and add missing cards to your collection.</p>
+            <div class="feature-icon">
+              <img src="https://assets.tcgdex.net/univ/base/base2/symbol.png" alt="" width="44" height="44" />
+            </div>
+            <h3>Complete Sets</h3>
+            <p>Track your favorite set from start to finish. Mark each card and variant as you complete the set.</p>
           </li>
         </ul>
+      </div>
+    </section>
+
+    <section id="pocket" class="section pocket">
+      <div class="container">
+        <h2 class="section-title">Your whole collection right in your pocket</h2>
+        <p class="section-lead">When out at events, browsing the LCS or even with friends, your collection is just a few clicks away—keep track and search up Pokémon to check versions and variants.</p>
+        <div class="pocket-grid">
+          <div class="pocket-item">
+            <div class="pocket-visual">
+              <img src="assets/screenshots/card-dex.png" alt="Card Dex – search and browse all cards" />
+            </div>
+            <h3 class="pocket-title">Card Dex</h3>
+            <p class="pocket-text">Search and browse our card database to look up printings and cards even without creating a new collection, or search a card and add it directly to your binder.</p>
+          </div>
+          <div class="pocket-item">
+            <div class="pocket-visual">
+              <img src="assets/screenshots/profile.png" alt="Profile – complete overview of your binders" />
+            </div>
+            <h3 class="pocket-title">Profile & overview</h3>
+            <p class="pocket-text">Look up your profile in the app to see a list of your collections and how far you are in each of them, as well as a total overview of your overall progress.</p>
+          </div>
+        </div>
       </div>
     </section>
 
     <section id="screens" class="section screens">
       <div class="container">
         <h2 class="section-title">See it in action</h2>
-        <div class="screens-grid">
-          <figure class="screen-card">
-            <img src="assets/screenshots/binder-empty.png" alt="Empty binder – start a new collection" />
-            <figcaption>Start a new binder or swipe between collections</figcaption>
-          </figure>
-          <figure class="screen-card">
-            <img src="assets/screenshots/collection-master.png" alt="Master collection – Collect Them All with progress" />
-            <figcaption>Master collection with progress and search</figcaption>
-          </figure>
-          <figure class="screen-card">
-            <img src="assets/screenshots/single-pokemon.png" alt="Single Pokémon collection – Voltorb, all printings" />
-            <figcaption>Single Pokémon binder – every printing, variant, and language</figcaption>
-          </figure>
-          <figure class="screen-card">
-            <img src="assets/screenshots/card-dex.png" alt="Card Dex – search and filter by language" />
-            <figcaption>Card Dex – search cards and filter by language</figcaption>
-          </figure>
-          <figure class="screen-card">
-            <img src="assets/screenshots/profile.png" alt="Profile – binders and collection overview" />
-            <figcaption>Profile – all binders and collection progress</figcaption>
-          </figure>
-        </div>
-      </div>
-    </section>
-
-    <section id="signup" class="section signup">
-      <div class="container">
-        <h2 class="section-title">Stay in the loop</h2>
-        <p class="section-lead">Get notified about Oakedex news and beta testing. No spam—we’ll only email you when there’s something worth sharing.</p>
-        <form id="signup-form" class="signup-form" action="https://formspree.io/f/mbdapoel" method="POST" novalidate>
-          <input type="hidden" name="_subject" value="Oakedex signup" />
-          <div class="signup-fields">
-            <label for="email" class="visually-hidden">Email address</label>
-            <input
-              type="email"
-              id="email"
-              name="email"
-              placeholder="you@example.com"
-              required
-              autocomplete="email"
-              class="signup-input"
-            />
-            <button type="submit" class="btn btn-primary signup-submit" id="signup-submit">Notify me</button>
+        <p class="section-lead">Try the app experience below—no install required. Demo only; progress is not saved.</p>
+        <p class="screens-beta-note">The demos display a beta version of the app; things might change in the final build.</p>
+        <div class="screens-grid screens-grid-demos">
+          <div class="screen-card screen-card-demo">
+            <div class="demo-frame-wrap">
+              <iframe title="Collection – swipe through binders" src="demo/collection.html" class="demo-iframe"></iframe>
+            </div>
           </div>
-          <label class="signup-checkbox">
-            <input type="checkbox" name="beta" value="yes" />
-            <span>I’m interested in beta testing</span>
-          </label>
-          <p id="signup-message" class="signup-message" aria-live="polite" hidden></p>
-        </form>
+          <div class="screen-card screen-card-demo">
+            <div class="demo-frame-wrap">
+              <iframe title="Edit binder demo" src="demo/edit.html" class="demo-iframe"></iframe>
+            </div>
+          </div>
+          <div class="screen-card screen-card-demo">
+            <div class="demo-frame-wrap">
+              <iframe title="Collections – swipe through binders" src="demo/collections-swipe.html" class="demo-iframe"></iframe>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
 
     <section id="download" class="section cta">
       <div class="container cta-inner">
-        <img src="assets/oakedex-logo.svg" alt="" class="cta-logo" aria-hidden="true" />
-        <h2 class="cta-title">Ready to organize your collection?</h2>
-        <p class="cta-text">Oakedex is available on Android and iOS. Data stays on your device or syncs with your account.</p>
-        <div class="cta-buttons">
-          <a href="https://play.google.com/store/apps/details?id=com.failuremtg.oakedex" class="btn btn-primary btn-store" target="_blank" rel="noopener noreferrer">Google Play</a>
-          <a href="https://www.oakedex.com" class="btn btn-ghost" target="_blank" rel="noopener noreferrer">Visit oakedex.com</a>
+        <div class="cta-carousel-wrap">
+          <div class="cta-carousel-outer">
+            <button type="button" class="cta-carousel-arrow cta-carousel-arrow--prev" id="cta-carousel-prev" aria-label="Previous screenshot">
+              <span aria-hidden="true">‹</span>
+            </button>
+            <div class="cta-carousel-viewport" id="cta-carousel-viewport">
+              <div class="cta-carousel-track" id="cta-carousel-track">
+                <div class="cta-carousel-slide">
+                  <img src="assets/screenshots/collections.png" alt="Collections – swipe between binders" />
+                </div>
+                <div class="cta-carousel-slide">
+                  <img src="assets/screenshots/card-dex.png" alt="Card Dex – search cards" />
+                </div>
+                <div class="cta-carousel-slide">
+                  <img src="assets/screenshots/profile.png" alt="Profile – overview" />
+                </div>
+                <div class="cta-carousel-slide">
+                  <img src="assets/screenshots/collections.png" alt="Collections – swipe between binders" />
+                </div>
+                <div class="cta-carousel-slide">
+                  <img src="assets/screenshots/card-dex.png" alt="Card Dex – search cards" />
+                </div>
+                <div class="cta-carousel-slide">
+                  <img src="assets/screenshots/profile.png" alt="Profile – overview" />
+                </div>
+                <div class="cta-carousel-slide">
+                  <img src="assets/screenshots/collections.png" alt="Collections – swipe between binders" />
+                </div>
+              </div>
+            </div>
+            <button type="button" class="cta-carousel-arrow cta-carousel-arrow--next" id="cta-carousel-next" aria-label="Next screenshot">
+              <span aria-hidden="true">›</span>
+            </button>
+          </div>
+          <div class="cta-carousel-dots" id="cta-carousel-dots" aria-hidden="true"></div>
         </div>
+        <h2 class="cta-title">Oakedex, join the collection today</h2>
+        <form id="cta-signup-form" class="signup-form cta-signup" action="https://formspree.io/f/mbdapoel" method="POST" novalidate>
+          <input type="hidden" name="_subject" value="Oakedex beta signup" />
+          <label for="cta-email" class="visually-hidden">Email for beta</label>
+          <input
+            type="email"
+            id="cta-email"
+            name="email"
+            placeholder="Email for beta"
+            required
+            autocomplete="email"
+            class="signup-input signup-input--cta"
+          />
+          <button type="submit" class="btn btn-primary cta-signup-btn">Beta sign-up</button>
+          <p id="cta-signup-message" class="signup-message" aria-live="polite" hidden></p>
+        </form>
       </div>
     </section>
   </main>
@@ -139,5 +198,6 @@
     </div>
   </footer>
   <script src="signup.js"></script>
+  <script src="cta-carousel.js"></script>
 </body>
 </html>

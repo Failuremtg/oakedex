@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Master collection – Oakedex demo</title>
+  <link rel="stylesheet" href="demo.css" />
+</head>
+<body class="demo-page-collection-swipe">
+  <header class="demo-header" id="demo-header">
+    <a href="../index.html#screens">← Back to Oakedex</a>
+    <span class="demo-badge">Demo</span>
+  </header>
+  <main class="demo-container demo-collection-swipe">
+    <div class="demo-swipe-header">
+      <p class="demo-swipe-hint">Swipe to go to next collection</p>
+    </div>
+    <div class="demo-swipe-shelf demo-collection-shelf" id="demo-collection-shelf" role="region" aria-label="Collections">
+      <div class="demo-swipe-page demo-collection-page" data-binder="master">
+        <div class="demo-collection-page-inner">
+          <p class="demo-progress-label">Progress</p>
+          <div class="demo-progress-bar">
+            <div id="progress-fill" class="demo-progress-fill" style="width: 0%"></div>
+          </div>
+          <p id="progress-text" class="demo-progress-text">0 / 24</p>
+          <div class="demo-collection-name">Collect Them All</div>
+          <div class="demo-search-row">
+            <input type="text" id="search" placeholder="Search Pokémon…" autocomplete="off" />
+          </div>
+          <div id="loading" class="demo-loading" hidden>Loading…</div>
+          <div id="message" class="demo-error" hidden></div>
+          <div id="grid" class="demo-card-grid"></div>
+        </div>
+      </div>
+      <div class="demo-swipe-page demo-collection-page" data-binder="pikachu">
+        <div class="demo-collection-page-inner">
+          <div class="demo-collection-name">Pikachu</div>
+          <p class="demo-collection-subtitle">Single Pokémon binder</p>
+          <p class="demo-collection-placeholder">In the app, this binder shows every printing of Pikachu. Swipe back to try the Master collection.</p>
+        </div>
+      </div>
+      <div class="demo-swipe-page demo-collection-page" data-binder="jungle">
+        <div class="demo-collection-page-inner">
+          <div class="demo-collection-name">Jungle</div>
+          <p class="demo-collection-subtitle">Set collection</p>
+          <p class="demo-collection-placeholder">In the app, this binder tracks your Jungle set completion. Swipe to explore.</p>
+        </div>
+      </div>
+    </div>
+  </main>
+  <div id="version-modal" class="demo-version-modal" role="dialog" aria-modal="true" aria-labelledby="version-modal-title" hidden>
+    <div class="demo-version-backdrop" id="version-modal-backdrop"></div>
+    <div class="demo-version-card demo-picker-card">
+      <h2 id="version-modal-title" class="demo-version-title">Choose card for <span id="version-modal-name"></span></h2>
+      <p class="demo-picker-hint">Tap one to set as collected</p>
+      <div id="version-modal-loading" class="demo-picker-loading" hidden>Loading cards…</div>
+      <div id="version-modal-grid" class="demo-picker-grid"></div>
+      <button type="button" class="demo-version-btn demo-version-btn--clear demo-picker-clear" id="version-picker-clear">I don't have this</button>
+      <button type="button" class="demo-version-close" id="version-modal-close">Cancel</button>
+    </div>
+  </div>
+  <script>
+    (function () {
+      if (window !== window.top) {
+        var h = document.getElementById('demo-header');
+        if (h) h.style.display = 'none';
+      }
+      var grid = document.getElementById('grid');
+      var searchInput = document.getElementById('search');
+      var progressText = document.getElementById('progress-text');
+      var progressFill = document.getElementById('progress-fill');
+      var loadingEl = document.getElementById('loading');
+      var messageEl = document.getElementById('message');
+      var STORAGE_KEY = 'oakedex_demo_master_owned';
+      var CHOSEN_KEY = 'oakedex_demo_master_chosen';
+      var TOTAL = 24;
+
+      function getOwned() {
+        try {
+          var raw = sessionStorage.getItem(STORAGE_KEY);
+          return raw ? JSON.parse(raw) : {};
+        } catch (e) { return {}; }
+      }
+
+      function setOwned(dexId, owned) {
+        var o = getOwned();
+        if (owned) o[dexId] = true; else delete o[dexId];
+        sessionStorage.setItem(STORAGE_KEY, JSON.stringify(o));
+      }
+
+      function getChosenCards() {
+        try {
+          var raw = sessionStorage.getItem(CHOSEN_KEY);
+          return raw ? JSON.parse(raw) : {};
+        } catch (e) { return {}; }
+      }
+
+      function setChosenCard(dexId, card) {
+        var c = getChosenCards();
+        if (card) c[dexId] = card; else delete c[dexId];
+        sessionStorage.setItem(CHOSEN_KEY, JSON.stringify(c));
+      }
+
+      function cardImageUrl(url) {
+        if (!url) return '';
+        return (url.replace(/\/$/, '') + '/high.png');
+      }
+
+      function pokeApiArtUrl(dexId) {
+        return 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/' + dexId + '.png';
+      }
+
+      function escapeHtml(s) {
+        var d = document.createElement('div');
+        d.textContent = s;
+        return d.innerHTML;
+      }
+
+      var slots = [];
+
+      function render() {
+        var q = (searchInput.value || '').trim().toLowerCase();
+        var owned = getOwned();
+        var chosen = getChosenCards();
+        var list = q ? slots.filter(function (s) { return s.name.toLowerCase().indexOf(q) !== -1; }) : slots;
+        var count = Object.keys(owned).length;
+        progressText.textContent = count + ' / ' + TOTAL;
+        progressFill.style.width = (count / TOTAL * 100) + '%';
+
+        grid.innerHTML = '';
+        list.forEach(function (slot) {
+          var isOwned = owned[slot.dexId];
+          var picked = chosen[slot.dexId];
+          var card = picked || slot.card;
+          var imgUrl = card ? cardImageUrl(card.image) : (slot.imageFallback || '');
+          var div = document.createElement('div');
+          div.className = 'demo-card ' + (isOwned ? 'demo-card-owned' : 'demo-card-unowned');
+          var ribbon = card
+            ? escapeHtml(card.setName || 'Set') + ' • #' + escapeHtml(card.localId || '')
+            : '#' + slot.dexId;
+          div.innerHTML =
+            '<img src="' + (imgUrl || '') + '" alt="" loading="lazy" onerror="this.onerror=null;this.src=\'' + pokeApiArtUrl(slot.dexId) + '\';" />' +
+            '<div class="demo-card-ribbon">' + ribbon + '</div>';
+          div.addEventListener('click', function () {
+            openPickerModal(slot);
+          });
+          grid.appendChild(div);
+        });
+      }
+
+      var versionModal = document.getElementById('version-modal');
+      var versionModalName = document.getElementById('version-modal-name');
+      var versionModalGrid = document.getElementById('version-modal-grid');
+      var versionModalLoading = document.getElementById('version-modal-loading');
+      var versionModalBackdrop = document.getElementById('version-modal-backdrop');
+      var versionModalClose = document.getElementById('version-modal-close');
+      var versionPickerClear = document.getElementById('version-picker-clear');
+      var currentSlot = null;
+      var setNamesById = {};
+
+      function setIdFromCardId(cardId) {
+        var i = cardId.lastIndexOf('-');
+        return i >= 0 ? cardId.slice(0, i) : cardId;
+      }
+
+      function openPickerModal(slot) {
+        if (!slot || !slot.name) return;
+        currentSlot = slot;
+        if (!versionModal || !versionModalName || !versionModalGrid) return;
+        versionModalName.textContent = slot.name;
+        versionModalGrid.innerHTML = '';
+        versionModalLoading.hidden = false;
+        versionModalLoading.textContent = 'Loading cards…';
+        versionModal.hidden = false;
+
+        var searchName = slot.name;
+        if (slot.name === 'Mr Mime') searchName = 'Mr. Mime';
+
+        var timeout = setTimeout(function () {
+          timeout = null;
+          versionModalLoading.hidden = true;
+          versionModalGrid.innerHTML = '<p class="demo-picker-empty">Loading took too long. Check your connection and try again.</p>';
+        }, 12000);
+
+        Promise.all([
+          fetch('https://api.tcgdex.net/v2/en/cards?name=' + encodeURIComponent(searchName))
+            .then(function (r) { return r.ok ? r.json() : []; })
+            .catch(function () { return []; }),
+          fetch('https://api.tcgdex.net/v2/en/sets')
+            .then(function (r) { return r.ok ? r.json() : []; })
+            .then(function (sets) {
+              var map = {};
+              (sets || []).forEach(function (s) { map[s.id] = s.name; });
+              return map;
+            })
+            .catch(function () { return {}; })
+        ]).then(function (results) {
+          if (timeout) clearTimeout(timeout);
+          timeout = null;
+          var cards = results[0] || [];
+          setNamesById = results[1] || {};
+          versionModalLoading.hidden = true;
+          versionModalGrid.innerHTML = '';
+          if (!Array.isArray(cards)) cards = [];
+          cards = cards.slice(0, 30);
+          cards.forEach(function (c) {
+            var setId = setIdFromCardId(c.id);
+            var setName = setNamesById[setId] || setId;
+            var cardData = {
+              id: c.id,
+              name: c.name,
+              localId: c.localId || c.id.split('-').pop(),
+              image: c.image,
+              setName: setName
+            };
+            var cell = document.createElement('button');
+            cell.type = 'button';
+            cell.className = 'demo-picker-cell';
+            var imgUrl = cardImageUrl(c.image);
+            cell.innerHTML =
+              '<img src="' + (imgUrl || '') + '" alt="" loading="lazy" />' +
+              '<span class="demo-picker-cell-ribbon">' + escapeHtml(setName) + ' • #' + escapeHtml(cardData.localId) + '</span>';
+            cell.addEventListener('click', function () {
+              onPickCard(cardData);
+            });
+            versionModalGrid.appendChild(cell);
+          });
+          if (cards.length === 0) {
+            versionModalGrid.innerHTML = '<p class="demo-picker-empty">No cards found for this Pokémon.</p>';
+          }
+        }).catch(function () {
+          if (timeout) clearTimeout(timeout);
+          versionModalLoading.hidden = true;
+          versionModalGrid.innerHTML = '<p class="demo-picker-empty">Could not load cards. Check your connection and try again.</p>';
+        });
+      }
+
+      function closeVersionModal() {
+        currentSlot = null;
+        if (versionModal) versionModal.hidden = true;
+      }
+
+      function onPickCard(card) {
+        if (!currentSlot) return;
+        setChosenCard(currentSlot.dexId, card);
+        setOwned(currentSlot.dexId, true);
+        closeVersionModal();
+        render();
+      }
+
+      function onClearCard() {
+        if (!currentSlot) return;
+        setChosenCard(currentSlot.dexId, null);
+        setOwned(currentSlot.dexId, false);
+        closeVersionModal();
+        render();
+      }
+
+      if (versionModalBackdrop) versionModalBackdrop.addEventListener('click', closeVersionModal);
+      if (versionModalClose) versionModalClose.addEventListener('click', closeVersionModal);
+      if (versionPickerClear) versionPickerClear.addEventListener('click', onClearCard);
+
+      var SET_IDS = ['base1', 'base2', 'base3', 'base4'];
+      loadingEl.hidden = false;
+      Promise.all([
+        fetch('https://pokeapi.co/api/v2/pokemon?limit=' + TOTAL).then(function (r) { return r.json(); }),
+        Promise.all(SET_IDS.map(function (setId) {
+          return fetch('https://api.tcgdex.net/v2/en/sets/' + setId)
+            .then(function (r) { return r.json(); })
+            .then(function (data) { return { setId: setId, data: data }; })
+            .catch(function () { return { setId: setId, data: null }; });
+        }))
+      ]).then(function (results) {
+        var pokemonList = (results[0].results || []).slice(0, TOTAL);
+        var cardsByName = {};
+        results[1].forEach(function (x) {
+          if (!x.data || !x.data.cards) return;
+          (x.data.cards || []).forEach(function (c) {
+            var n = (c.name || '').toLowerCase();
+            if (!cardsByName[n]) cardsByName[n] = { id: c.id, name: c.name, localId: c.localId, image: c.image, setName: x.data.name };
+          });
+        });
+        slots = [];
+        pokemonList.forEach(function (p, i) {
+          var dexId = i + 1;
+          var rawName = p.name || '';
+          var displayName = rawName.replace(/-/g, ' ');
+          var card = cardsByName[rawName] || cardsByName[displayName] || cardsByName[rawName.replace(/-/g, '. ')] || null;
+          var imageFallback = pokeApiArtUrl(dexId);
+          slots.push({ dexId: dexId, name: displayName, card: card, imageFallback: imageFallback });
+        });
+        loadingEl.hidden = true;
+        render();
+      }).catch(function () {
+        loadingEl.hidden = true;
+        messageEl.textContent = 'Could not load. Check connection.';
+        messageEl.hidden = false;
+      });
+
+      searchInput.addEventListener('input', render);
+    })();
+  </script>
+</body>
+</html>

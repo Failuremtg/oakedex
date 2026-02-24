@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Collections – swipe demo</title>
+  <link rel="stylesheet" href="demo.css" />
+</head>
+<body class="demo-page-collections-swipe">
+  <header class="demo-header" id="demo-header">
+    <a href="../index.html#screens">← Back to Oakedex</a>
+    <span class="demo-badge">Demo</span>
+  </header>
+  <main class="demo-container demo-collections-swipe">
+    <div class="demo-swipe-header" id="demo-swipe-header">
+      <img src="../assets/oakedex-logo.svg" alt="Oakedex" class="demo-swipe-logo" />
+      <p class="demo-swipe-hint">Swipe to go to next collection</p>
+    </div>
+    <div class="demo-swipe-shelf" id="demo-swipe-shelf" role="region" aria-label="Collections">
+      <!-- Filled by JS -->
+    </div>
+  </main>
+  <script>
+    (function () {
+      if (window !== window.top) {
+        var h = document.getElementById('demo-header');
+        if (h) h.style.display = 'none';
+      }
+      var shelf = document.getElementById('demo-swipe-shelf');
+      if (!shelf) return;
+
+      var MASTER_BALL_ICON = 'https://raw.githubusercontent.com/msikma/pokesprite/master/items-outline/ball/master.png';
+      var JUNGLE_SET_ICON = 'https://assets.tcgdex.net/univ/base/base2/symbol.png';
+      var FOSSIL_SET_ICON = 'https://assets.tcgdex.net/univ/base/base3/symbol.png';
+      function pokemonSpriteUrl(dexId) {
+        return 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/' + dexId + '.png';
+      }
+
+      var binders = [
+        { id: 'master', displayName: 'Collect Them All', subtitle: 'Master Collection', binderColor: '#6a449b', iconUri: MASTER_BALL_ICON, isTrueMaster: false },
+        { id: 'pikachu', displayName: 'Pikachu', subtitle: 'Pikachu Collection', binderColor: '#F8D030', iconUri: pokemonSpriteUrl(25), isTrueMaster: false },
+        { id: 'voltorb', displayName: 'Voltorb', subtitle: 'Voltorb Collection', binderColor: '#F8D030', iconUri: pokemonSpriteUrl(100), isTrueMaster: false },
+        { id: 'true-master', displayName: 'Kanto Master', subtitle: 'True Master Collection', binderColor: '#A8A878', iconUri: MASTER_BALL_ICON, isTrueMaster: true },
+        { id: 'jungle', displayName: 'Jungle', subtitle: 'Jungle Collection', binderColor: '#78C850', iconUri: JUNGLE_SET_ICON, isTrueMaster: false },
+        { id: 'fossil', displayName: 'Fossil', subtitle: 'Fossil Collection', binderColor: '#98D8D8', iconUri: FOSSIL_SET_ICON, isTrueMaster: false }
+      ];
+
+      function escapeHtml(s) {
+        var d = document.createElement('div');
+        d.textContent = s;
+        return d.innerHTML;
+      }
+
+      binders.forEach(function (b) {
+        var page = document.createElement('div');
+        page.className = 'demo-swipe-page';
+        page.innerHTML =
+          '<div class="demo-swipe-binder">' +
+            '<div class="demo-swipe-cover-wrap">' +
+              '<div class="demo-binder-cover">' +
+                '<span class="demo-binder-spine"></span>' +
+                '<span class="demo-binder-cover-part" style="--binder-cover-color:' + escapeHtml(b.binderColor) + '"></span>' +
+              '</div>' +
+              '<div class="demo-binder-sticker">' +
+                '<img src="' + escapeHtml(b.iconUri) + '" alt="" loading="lazy" />' +
+                (b.isTrueMaster ? '<span class="demo-binder-star-badge" aria-hidden="true">★</span>' : '') +
+              '</div>' +
+            '</div>' +
+            '<div class="demo-swipe-ribbon">' +
+              '<span class="demo-swipe-ribbon-title">' + escapeHtml(b.displayName) + '</span>' +
+              '<span class="demo-swipe-ribbon-subtitle">' + escapeHtml(b.subtitle) + '</span>' +
+            '</div>' +
+          '</div>';
+        shelf.appendChild(page);
+      });
+    })();
+  </script>
+</body>
+</html>

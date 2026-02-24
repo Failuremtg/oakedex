@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Edit binders – Oakedex demo</title>
+  <link rel="stylesheet" href="demo.css" />
+</head>
+<body class="demo-page-binder">
+  <header class="demo-header" id="demo-header">
+    <a href="../index.html#screens">← Back to Oakedex</a>
+    <span class="demo-badge">Demo</span>
+  </header>
+  <main class="demo-container">
+    <h1 class="demo-title">Your binders</h1>
+    <p class="demo-subtitle">Hold and drag to reorder. Tap to open in the app.</p>
+    <div id="binder-overview" class="demo-binder-overview" aria-live="polite">
+      <span id="binder-count" class="demo-binder-overview-count">0 binders</span>
+      <span class="demo-binder-overview-sep">·</span>
+      <span id="binder-complete" class="demo-binder-overview-complete">0 complete</span>
+    </div>
+    <ul id="list" class="demo-binder-list"></ul>
+  </main>
+  <script>
+    (function () {
+      if (window !== window.top) {
+        var h = document.getElementById('demo-header');
+        if (h) h.style.display = 'none';
+      }
+      var listEl = document.getElementById('list');
+      var countEl = document.getElementById('binder-count');
+      var completeEl = document.getElementById('binder-complete');
+      var STORAGE_KEY = 'oakedex_demo_binder_order';
+
+      /** From meta like "45 / 102 cards" or "102 / 102 filled", return true if collection is complete (current >= total). */
+      function isComplete(meta) {
+        var m = (meta || '').match(/(\d+)\s*\/\s*(\d+)/);
+        return m ? parseInt(m[1], 10) >= parseInt(m[2], 10) : false;
+      }
+
+      // Same icons as app; only use set symbols that exist in TCGdex API (base1 has no symbol, base2/base3 do)
+      var MASTER_BALL_ICON = 'https://raw.githubusercontent.com/msikma/pokesprite/master/items-outline/ball/master.png';
+      var POKE_BALL_ICON = 'https://raw.githubusercontent.com/msikma/pokesprite/master/items-outline/ball/poke.png';
+      var JUNGLE_SET_ICON = 'https://assets.tcgdex.net/univ/base/base2/symbol.png';
+      var FOSSIL_SET_ICON = 'https://assets.tcgdex.net/univ/base/base3/symbol.png';
+      function pokemonSpriteUrl(dexId) {
+        return 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/' + dexId + '.png';
+      }
+
+      // App-like phantom binders: only sets with symbols (no Base Set – API has no symbol for base1)
+      var phantomBinders = [
+        { id: 'master', type: 'collect_them_all', displayName: 'Collect Them All', subtitle: 'Master Collection', meta: '22 / 1025 filled', binderColor: '#6a449b', iconUri: MASTER_BALL_ICON, isTrueMaster: false },
+        { id: 'pikachu', type: 'single_pokemon', displayName: 'Pikachu', subtitle: 'Pikachu Collection', meta: '5 / 95 printings', binderColor: '#F8D030', iconUri: pokemonSpriteUrl(25), isTrueMaster: false },
+        { id: 'voltorb', type: 'single_pokemon', displayName: 'Voltorb', subtitle: 'Voltorb Collection', meta: '16 / 478 printings', binderColor: '#F8D030', iconUri: pokemonSpriteUrl(100), isTrueMaster: false },
+        { id: 'true-master', type: 'master_set', displayName: 'Kanto Master', subtitle: 'True Master Collection', meta: '102 / 102 filled', binderColor: '#A8A878', iconUri: MASTER_BALL_ICON, isTrueMaster: true },
+        { id: 'jungle', type: 'by_set', displayName: 'Jungle', subtitle: 'Jungle Collection', meta: '12 / 64 cards', binderColor: '#78C850', iconUri: JUNGLE_SET_ICON, isTrueMaster: false },
+        { id: 'fossil', type: 'by_set', displayName: 'Fossil', subtitle: 'Fossil Collection', meta: '8 / 62 cards', binderColor: '#98D8D8', iconUri: FOSSIL_SET_ICON, isTrueMaster: false }
+      ];
+
+      function getOrder() {
+        try {
+          var raw = sessionStorage.getItem(STORAGE_KEY);
+          if (raw) {
+            var arr = JSON.parse(raw);
+            if (Array.isArray(arr) && arr.length === phantomBinders.length) return arr;
+          }
+        } catch (e) {}
+        return null;
+      }
+
+      function saveOrder(ids) {
+        sessionStorage.setItem(STORAGE_KEY, JSON.stringify(ids));
+      }
+
+      function escapeHtml(s) {
+        var d = document.createElement('div');
+        d.textContent = s;
+        return d.innerHTML;
+      }
+
+      var binders = phantomBinders.slice();
+      var order = getOrder();
+      if (order) {
+        var byId = {};
+        binders.forEach(function (b) { byId[b.id] = b; });
+        binders = order.map(function (id) { return byId[id]; }).filter(Boolean);
+        if (binders.length !== phantomBinders.length) binders = phantomBinders.slice();
+      }
+
+      var draggedIndex = -1;
+
+      function render() {
+        var total = binders.length;
+        var complete = binders.filter(function (b) { return isComplete(b.meta); }).length;
+        if (countEl) countEl.textContent = total + ' binder' + (total === 1 ? '' : 's');
+        if (completeEl) completeEl.textContent = complete + ' complete';
+        saveOrder(binders.map(function (b) { return b.id; }));
+        listEl.innerHTML = '';
+        binders.forEach(function (b, i) {
+          var li = document.createElement('li');
+          li.className = 'demo-binder-row';
+          li.draggable = true;
+          li.dataset.index = i;
+          var thumbHtml =
+            '<div class="demo-binder-cover-wrap">' +
+              '<div class="demo-binder-cover">' +
+                '<span class="demo-binder-spine"></span>' +
+                '<span class="demo-binder-cover-part" style="--binder-cover-color:' + escapeHtml(b.binderColor) + '"></span>' +
+              '</div>' +
+              '<div class="demo-binder-sticker">' +
+                '<img src="' + escapeHtml(b.iconUri) + '" alt="" loading="lazy" />' +
+                (b.isTrueMaster ? '<span class="demo-binder-star-badge" aria-hidden="true">★</span>' : '') +
+              '</div>' +
+            '</div>';
+          li.innerHTML =
+            '<span class="demo-drag-handle" aria-hidden="true">⋮⋮</span>' +
+            '<div class="demo-binder-card">' +
+              '<span class="demo-binder-title">' + escapeHtml(b.displayName) + '</span>' +
+              '<span class="demo-binder-type">' + escapeHtml(b.subtitle) + '</span>' +
+              '<span class="demo-binder-meta">' + escapeHtml(b.meta) + '</span>' +
+            '</div>' +
+            thumbHtml;
+          li.addEventListener('dragstart', function (e) {
+            draggedIndex = i;
+            li.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', i);
+          });
+          li.addEventListener('dragend', function () {
+            li.classList.remove('dragging');
+            draggedIndex = -1;
+          });
+          li.addEventListener('dragover', function (e) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; });
+          li.addEventListener('drop', function (e) {
+            e.preventDefault();
+            var idx = parseInt(li.dataset.index, 10);
+            if (draggedIndex === -1 || idx === draggedIndex) return;
+            var item = binders.splice(draggedIndex, 1)[0];
+            binders.splice(idx, 0, item);
+            render();
+          });
+          listEl.appendChild(li);
+        });
+      }
+
+      render();
+    })();
+  </script>
+</body>
+</html>
