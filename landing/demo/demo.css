@@ -620,6 +620,20 @@ body.demo-page-collection-swipe .demo-container {
   box-sizing: border-box;
 }
 
+/* Fill iframe so shelf has height and can scroll horizontally */
+:root:has(body.demo-page-collections-swipe) {
+  height: 100%;
+}
+body.demo-page-collections-swipe {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+body.demo-page-collections-swipe .demo-container {
+  flex: 1;
+  min-height: 0;
+}
+
 .demo-collections-swipe {
   flex: 1;
   min-height: 0;
