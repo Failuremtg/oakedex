@@ -257,6 +257,11 @@ body {
   border: 1px solid var(--border);
 }
 
+.hero-screenshot.hero-promo {
+  width: auto;
+  max-width: min(100%, 720px);
+}
+
 /* Buttons */
 .btn {
   display: inline-flex;
