@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Request deletion of your Oakedex account." />
+  <title>Delete my account – Oakedex</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-inner">
+      <a href="index.html" class="logo-link" aria-label="Oakedex home">
+        <img src="assets/oakedex-logo.svg" alt="Oakedex" class="logo-img" />
+      </a>
+      <nav class="nav">
+        <a href="index.html">Home</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="policy-page delete-account-page">
+    <div class="container">
+      <h1 class="policy-title">Delete my account</h1>
+      <p class="policy-updated">Submit the form below to request deletion of your Oakedex account. Your account and associated data will be deleted within <strong>10 days</strong>. Your password is used only to verify your identity for this request.</p>
+
+      <form id="delete-account-form" class="delete-account-form" action="https://formspree.io/f/mbdapoel" method="POST" novalidate>
+        <input type="hidden" name="_subject" value="Oakedex account deletion request" />
+        <div class="form-group">
+          <label for="delete-email">Email</label>
+          <input type="email" id="delete-email" name="email" required autocomplete="email" class="form-input" placeholder="Your account email" />
+        </div>
+        <div class="form-group">
+          <label for="delete-username">Username</label>
+          <input type="text" id="delete-username" name="username" required autocomplete="username" class="form-input" placeholder="Your display name / username" />
+        </div>
+        <div class="form-group">
+          <label for="delete-password">Password</label>
+          <input type="password" id="delete-password" name="password" required autocomplete="current-password" class="form-input" placeholder="Your account password" />
+        </div>
+        <div class="form-group">
+          <label for="delete-password-confirm">Confirm password</label>
+          <input type="password" id="delete-password-confirm" name="password_confirm" required class="form-input" placeholder="Confirm your password" />
+        </div>
+        <p id="delete-account-message" class="signup-message" aria-live="polite" hidden></p>
+        <button type="submit" class="btn btn-delete">Request account deletion</button>
+      </form>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-inner">
+      <p class="footer-brand">Oakedex</p>
+      <p class="footer-legal">Pokémon and Pokémon TCG are © of The Pokémon Company. This app is not affiliated with or endorsed by them.</p>
+    </div>
+  </footer>
+  <script>
+    (function () {
+      var form = document.getElementById('delete-account-form');
+      var messageEl = document.getElementById('delete-account-message');
+      if (!form || !messageEl) return;
+
+      function showMessage(text, type) {
+        messageEl.textContent = text;
+        messageEl.hidden = !text;
+        messageEl.className = 'signup-message signup-message--' + (type || '');
+      }
+
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var email = form.querySelector('input[name="email"]');
+        var username = form.querySelector('input[name="username"]');
+        var password = form.querySelector('input[name="password"]');
+        var passwordConfirm = form.querySelector('input[name="password_confirm"]');
+
+        if (!email || !email.value.trim()) {
+          showMessage('Please enter your email.', 'error');
+          return;
+        }
+        if (!email.validity.valid) {
+          showMessage('Please enter a valid email address.', 'error');
+          return;
+        }
+        if (!username || !username.value.trim()) {
+          showMessage('Please enter your username.', 'error');
+          return;
+        }
+        if (!password || !password.value) {
+          showMessage('Please enter your password.', 'error');
+          return;
+        }
+        if (password.value !== passwordConfirm.value) {
+          showMessage('Passwords do not match.', 'error');
+          return;
+        }
+
+        var submitBtn = form.querySelector('button[type="submit"]');
+        if (submitBtn) submitBtn.disabled = true;
+        showMessage('', 'success');
+
+        var action = form.getAttribute('action');
+        if (!action || action.indexOf('YOUR_FORM_ID') !== -1) {
+          showMessage('Account deletion is not configured yet. Please contact support.', 'error');
+          if (submitBtn) submitBtn.disabled = false;
+          return;
+        }
+
+        var body = new FormData(form);
+        fetch(action, { method: 'POST', body: body, headers: { Accept: 'application/json' } })
+          .then(function (res) {
+            if (res.ok) {
+              showMessage('Your request has been received. Your account will be deleted within 10 days. You may receive a confirmation email if we need to verify anything.', 'success');
+              form.reset();
+            } else {
+              return res.json().then(function (data) {
+                showMessage(data.error || 'Something went wrong. Please try again.', 'error');
+              });
+            }
+          })
+          .catch(function () {
+            showMessage('Something went wrong. Please try again.', 'error');
+          })
+          .finally(function () {
+            if (submitBtn) submitBtn.disabled = false;
+          });
+      });
+    })();
+  </script>
+</body>
+</html>
