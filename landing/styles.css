@@ -227,6 +227,12 @@ body {
   flex-shrink: 0;
 }
 
+.hero-signup-btn {
+  margin-top: 16px;
+  width: 100%;
+  max-width: 100%;
+}
+
 .hero-scroll-hint {
   margin: 0;
   font-size: 0.95rem;
