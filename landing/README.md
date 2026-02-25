@@ -33,19 +33,39 @@ Your site will be live at `https://your-project.vercel.app`. You can add a custo
 
 ## Sign-up form (news & beta)
 
-The “Stay in the loop” section collects emails for news and beta testing. Submissions are sent via [Formspree](https://formspree.io) (free tier is enough to get started).
+You can use **Firebase** (recommended, no signup limits) or **Formspree** (simpler, free tier limits).
 
-1. Create a Formspree account and add a new form.
-2. Copy your form ID from the form’s endpoint (e.g. `https://formspree.io/f/abcdexyz` → `abcdexyz`).
-3. In `landing/index.html`, replace `YOUR_FORM_ID` in the form `action` with your form ID:
-   ```html
-   action="https://formspree.io/f/abcdexyz"
+### Option A: Firebase (recommended for many signups)
+
+Signups are stored in Firestore collection `landingSignups`. You can export all submissions to CSV anytime.
+
+1. **Firebase config**  
+   Copy `firebase-config.example.js` to `firebase-config.js` and fill in your Web app config (same as your Expo app: Firebase Console → Project settings → Your apps → Web app).
+
+2. **Firestore rules**  
+   Deploy rules so the collection exists and only accepts creates (no public read):
+   ```bash
+   firebase deploy --only firestore:rules
    ```
-4. In Formspree, turn on “Email notifications” so you get each sign-up by email. You can also see and export submissions in the dashboard. The form sends:
-   - `email` – signer’s address  
-   - `beta` – `"yes"` if they checked “I’m interested in beta testing”
+   The repo’s `firestore.rules` already includes `landingSignups` (create-only).
 
-If the form ID is left as `YOUR_FORM_ID`, the page still works but shows a “Sign-up is not configured yet” message on submit.
+3. **Export all signups to CSV**  
+   From the project root, with a service account (Firebase Console → Project settings → Service accounts → Generate new private key):
+   ```bash
+   npm install
+   set GOOGLE_APPLICATION_CREDENTIALS=path\to\service-account.json
+   npm run export-signups -- --output landing-signups.csv
+   ```
+   Or on Mac/Linux: `GOOGLE_APPLICATION_CREDENTIALS=./service-account.json npm run export-signups -- --output landing-signups.csv`  
+   Open `landing-signups.csv` to get all emails (and beta/source/createdAt) for inviting testers.
+
+### Option B: Formspree
+
+1. Create a [Formspree](https://formspree.io) account and add a new form.
+2. In `landing/index.html`, set the form `action` to your form endpoint (e.g. `https://formspree.io/f/abcdexyz`).
+3. Leave `firebase-config.js` with empty `projectId` so the page keeps using Formspree.
+
+The form sends `email`, `beta` (yes if “I’m interested in beta testing” is checked), and `source` (hero/cta).
 
 ## Deploy
 
