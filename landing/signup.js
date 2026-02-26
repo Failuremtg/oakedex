@@ -12,14 +12,17 @@
     var config = window.FIREBASE_CONFIG;
     if (!window.firebase || !window.firebase.firestore) {
       showMessage(messageEl, 'Sign-up is not configured. Please try again later.', 'error');
-      return Promise.reject();
+      return Promise.reject(new Error('Firebase not loaded'));
     }
-    var app = window.firebase.app();
-    if (!app) {
+    var app;
+    try {
+      app = window.firebase.app();
+    } catch (e) {
       try {
         app = window.firebase.initializeApp(config);
-      } catch (e) {
-        app = window.firebase.app();
+      } catch (e2) {
+        showMessage(messageEl, 'Could not start sign-up. Please refresh and try again.', 'error');
+        return Promise.reject(e2);
       }
     }
     var db = window.firebase.firestore(app);
@@ -33,7 +36,8 @@
       showMessage(messageEl, successText, 'success');
       form.reset();
     }).catch(function (err) {
-      showMessage(messageEl, err.message || 'Something went wrong. Please try again.', 'error');
+      var msg = (err && err.message) ? err.message : 'Something went wrong. Please try again.';
+      showMessage(messageEl, msg, 'error');
       throw err;
     });
   }
@@ -83,15 +87,25 @@
       var beta = betaCheckbox ? betaCheckbox.checked : false;
 
       emailInput.disabled = true;
-      showMessage(messageEl, '', 'success');
+      showMessage(messageEl, 'Sending…', 'success');
 
-      var promise = useFirebase
-        ? submitViaFirebase(form, email, beta, source, messageEl, successText)
-        : submitViaFormspree(form, messageEl, successText);
-
-      promise.catch(function () {}).finally(function () {
+      var promise;
+      try {
+        promise = useFirebase
+          ? submitViaFirebase(form, email, beta, source, messageEl, successText)
+          : submitViaFormspree(form, messageEl, successText);
+      } catch (err) {
+        showMessage(messageEl, (err && err.message) ? err.message : 'Something went wrong. Please try again.', 'error');
         emailInput.disabled = false;
-      });
+        return;
+      }
+      if (promise && typeof promise.catch === 'function') {
+        promise.catch(function () {}).finally(function () {
+          emailInput.disabled = false;
+        });
+      } else {
+        emailInput.disabled = false;
+      }
     });
   }
 
