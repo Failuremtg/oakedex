@@ -35,7 +35,7 @@
       <section class="policy-section">
         <h2>Information we collect</h2>
         <ul>
-          <li><strong>Website sign-up:</strong> If you submit your email on our landing page (e.g. for news or beta), we receive that email address via our form provider (Formspree). We use it only to send you updates about Oakedex and beta access if you opted in.</li>
+          <li><strong>Website sign-up:</strong> If you submit your email on our landing page (e.g. for news or beta), we store that email (and optional beta interest) in our database (Firebase Firestore). We use it only to send you updates about Oakedex and beta access if you opted in.</li>
           <li><strong>App account:</strong> If you create an account in the app (email/password), we store account credentials and profile data (e.g. display name) using Firebase Authentication and Firestore. Collection and binder data you create is stored in your Firestore user space.</li>
           <li><strong>Local data:</strong> When you use the app without signing in, collection data is stored locally on your device (e.g. via AsyncStorage). We do not have access to that data.</li>
         </ul>
@@ -50,8 +50,7 @@
         <h2>Third-party services</h2>
         <p>We use:</p>
         <ul>
-          <li><strong>Formspree</strong> – to process email sign-ups on the website. See <a href="https://formspree.io/legal/privacy-policy" target="_blank" rel="noopener noreferrer">Formspree’s privacy policy</a>.</li>
-          <li><strong>Firebase (Google)</strong> – for authentication and cloud storage in the app. See <a href="https://firebase.google.com/support/privacy" target="_blank" rel="noopener noreferrer">Firebase privacy</a> and <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">Google’s privacy policy</a>.</li>
+          <li><strong>Firebase (Google)</strong> – for website sign-up storage (Firestore) and for authentication and cloud storage in the app. See <a href="https://firebase.google.com/support/privacy" target="_blank" rel="noopener noreferrer">Firebase privacy</a> and <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">Google’s privacy policy</a>.</li>
         </ul>
       </section>
 

@@ -33,23 +33,16 @@ Your site will be live at `https://your-project.vercel.app`. You can add a custo
 
 ## Sign-up form (news & beta)
 
-You can use **Firebase** (recommended, no signup limits) or **Formspree** (simpler, free tier limits).
+Signups are stored in Firestore collection `landingSignups`. Firebase config is inlined in `landing/index.html`; no separate `firebase-config.js` is required for deploy.
 
-### Option A: Firebase (recommended for many signups)
-
-Signups are stored in Firestore collection `landingSignups`. You can export all submissions to CSV anytime.
-
-1. **Firebase config**  
-   Copy `firebase-config.example.js` to `firebase-config.js` and fill in your Web app config (same as your Expo app: Firebase Console → Project settings → Your apps → Web app).
-
-2. **Firestore rules**  
+1. **Firestore rules**  
    Deploy rules so the collection exists and only accepts creates (no public read):
    ```bash
    firebase deploy --only firestore:rules
    ```
    The repo’s `firestore.rules` already includes `landingSignups` (create-only).
 
-3. **Export all signups to CSV**  
+2. **Export all signups to CSV**  
    From the project root, with a service account (Firebase Console → Project settings → Service accounts → Generate new private key):
    ```bash
    npm install
@@ -58,12 +51,6 @@ Signups are stored in Firestore collection `landingSignups`. You can export all 
    ```
    Or on Mac/Linux: `GOOGLE_APPLICATION_CREDENTIALS=./service-account.json npm run export-signups -- --output landing-signups.csv`  
    Open `landing-signups.csv` to get all emails (and beta/source/createdAt) for inviting testers.
-
-### Option B: Formspree
-
-1. Create a [Formspree](https://formspree.io) account and add a new form.
-2. In `landing/index.html`, set the form `action` to your form endpoint (e.g. `https://formspree.io/f/abcdexyz`).
-3. Leave `firebase-config.js` with empty `projectId` so the page keeps using Formspree.
 
 The form sends `email`, `beta` (yes if “I’m interested in beta testing” is checked), and `source` (hero/cta).
 

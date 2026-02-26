@@ -27,7 +27,7 @@
       <h1 class="policy-title">Delete my account</h1>
       <p class="policy-updated">Submit the form below to request deletion of your Oakedex account. Your account and associated data will be deleted within <strong>10 days</strong>. Your password is used only to verify your identity for this request.</p>
 
-      <form id="delete-account-form" class="delete-account-form" action="https://formspree.io/f/mbdapoel" method="POST" novalidate>
+      <form id="delete-account-form" class="delete-account-form" action="#" method="POST" novalidate>
         <input type="hidden" name="_subject" value="Oakedex account deletion request" />
         <div class="form-group">
           <label for="delete-email">Email</label>
@@ -101,31 +101,8 @@
         if (submitBtn) submitBtn.disabled = true;
         showMessage('', 'success');
 
-        var action = form.getAttribute('action');
-        if (!action || action.indexOf('YOUR_FORM_ID') !== -1) {
-          showMessage('Account deletion is not configured yet. Please contact support.', 'error');
-          if (submitBtn) submitBtn.disabled = false;
-          return;
-        }
-
-        var body = new FormData(form);
-        fetch(action, { method: 'POST', body: body, headers: { Accept: 'application/json' } })
-          .then(function (res) {
-            if (res.ok) {
-              showMessage('Your request has been received. Your account will be deleted within 10 days. You may receive a confirmation email if we need to verify anything.', 'success');
-              form.reset();
-            } else {
-              return res.json().then(function (data) {
-                showMessage(data.error || 'Something went wrong. Please try again.', 'error');
-              });
-            }
-          })
-          .catch(function () {
-            showMessage('Something went wrong. Please try again.', 'error');
-          })
-          .finally(function () {
-            if (submitBtn) submitBtn.disabled = false;
-          });
+        showMessage('Account deletion requests are not submitted via this form. Please contact support (e.g. via the app or the email on the main page) to request account deletion.', 'error');
+        if (submitBtn) submitBtn.disabled = false;
       });
     })();
   </script>

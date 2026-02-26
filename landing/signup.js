@@ -42,29 +42,6 @@
     });
   }
 
-  function submitViaFormspree(form, messageEl, successText) {
-    var action = form.getAttribute('action');
-    if (!action || action.indexOf('YOUR_FORM_ID') !== -1) {
-      showMessage(messageEl, 'Sign-up is not configured yet. Please try again later.', 'error');
-      return Promise.reject();
-    }
-    var body = new FormData(form);
-    return fetch(action, {
-      method: 'POST',
-      body: body,
-      headers: { Accept: 'application/json' }
-    }).then(function (res) {
-      if (res.ok) {
-        showMessage(messageEl, successText, 'success');
-        form.reset();
-      } else {
-        return res.json().then(function (data) {
-          showMessage(messageEl, data.error || 'Something went wrong. Please try again.', 'error');
-        });
-      }
-    });
-  }
-
   function setupForm(formId, messageId, successText, source) {
     var form = document.getElementById(formId);
     var messageEl = document.getElementById(messageId);
@@ -72,6 +49,10 @@
 
     form.addEventListener('submit', function (e) {
       e.preventDefault();
+      if (!useFirebase) {
+        showMessage(messageEl, 'Sign-up is not configured. Please try again later.', 'error');
+        return;
+      }
       var emailInput = form.querySelector('input[name="email"]');
       if (!emailInput || !emailInput.value.trim()) {
         showMessage(messageEl, 'Please enter your email address.', 'error');
@@ -91,9 +72,7 @@
 
       var promise;
       try {
-        promise = useFirebase
-          ? submitViaFirebase(form, email, beta, source, messageEl, successText)
-          : submitViaFormspree(form, messageEl, successText);
+        promise = submitViaFirebase(form, email, beta, source, messageEl, successText);
       } catch (err) {
         showMessage(messageEl, (err && err.message) ? err.message : 'Something went wrong. Please try again.', 'error');
         emailInput.disabled = false;
