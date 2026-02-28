@@ -36,6 +36,9 @@ yarn-error.*
 .env.export
 .cursor/
 
+# Android signing credentials (never commit these)
+credentials.json
+
 # typescript
 *.tsbuildinfo
 

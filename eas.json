@@ -15,13 +15,13 @@
     },
     "production": {
       "env": { "EAS_BUILD_NO_EXPO_GO_WARNING": "true" },
-      "android": { "buildType": "app-bundle" },
+      "android": { "buildType": "app-bundle", "credentialsSource": "local" },
       "ios": { "resourceClass": "m-medium" }
     },
     "production-apk": {
       "environment": "production",
       "env": { "EAS_BUILD_NO_EXPO_GO_WARNING": "true" },
-      "android": { "buildType": "apk" }
+      "android": { "buildType": "apk", "credentialsSource": "local" }
     }
   },
   "submit": {
