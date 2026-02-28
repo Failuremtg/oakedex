@@ -3,6 +3,7 @@ import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
+  ScrollView,
   StyleSheet,
   TextInput,
   View,
@@ -32,7 +33,12 @@ export default function ForgotPasswordScreen() {
   }, [email, sendPasswordResetEmail, clearError]);
 
   return (
-    <View style={styles.container}>
+    <ScrollView
+      style={styles.scroll}
+      contentContainerStyle={styles.container}
+      showsVerticalScrollIndicator={true}
+      keyboardShouldPersistTaps="handled"
+    >
       <Text style={styles.instruction}>
         Enter the email address for your account and we&apos;ll send you a link to reset your password.
       </Text>
@@ -74,15 +80,17 @@ export default function ForgotPasswordScreen() {
           </Pressable>
         </Link>
       </Text>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
+  scroll: { flex: 1, backgroundColor: charcoal },
   container: {
-    flex: 1,
+    flexGrow: 1,
     padding: 24,
     backgroundColor: charcoal,
+    paddingBottom: 40,
   },
   instruction: {
     color: TEXT_SECONDARY,

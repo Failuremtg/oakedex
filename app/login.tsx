@@ -3,7 +3,9 @@ import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
+  Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   TextInput,
   View,
@@ -56,7 +58,12 @@ export default function LoginScreen() {
   const loading = busy || authLoading;
 
   return (
-    <View style={styles.container}>
+    <ScrollView
+      style={styles.scroll}
+      contentContainerStyle={styles.container}
+      showsVerticalScrollIndicator={true}
+      keyboardShouldPersistTaps="handled"
+    >
       <Image
         source={require('@/assets/images/oakedex-logo.png')}
         style={styles.logo}
@@ -117,6 +124,19 @@ export default function LoginScreen() {
         <View style={styles.dividerLine} />
       </View>
 
+      {Platform.OS === 'ios' && (
+        <Pressable
+          style={[styles.socialButton, styles.appleButton, loading && styles.buttonDisabled]}
+          disabled={loading}
+          onPress={() => {
+            hapticLight();
+            handleApple();
+          }}
+        >
+          <Text style={styles.socialButtonText}>Sign in with Apple</Text>
+        </Pressable>
+      )}
+
       <Pressable
         style={[
           styles.socialButton,
@@ -139,20 +159,10 @@ export default function LoginScreen() {
             <Text style={styles.hintBold}>Using the installed app (APK/AAB)?</Text> Add EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID to EAS: put it in .env, run npm run eas:set-firebase, then create a new build.
           </Text>
           <Text style={[styles.hintText, { marginTop: 6 }]}>
-            <Text style={styles.hintBold}>Using dev or Expo Go?</Text> Set EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID in .env. In Google Cloud Console → Credentials → your Web client → Authorized redirect URIs, add: https://auth.expo.io/@failuremtg/oakedex (Expo Go) and oakedex://redirect (dev build).
+            <Text style={styles.hintBold}>Using dev or Expo Go?</Text> Set EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID in .env. In Google Cloud Console → Credentials → your Web client → Authorized redirect URIs, add: https://auth.expo.io/@failuremtg/oakedex
           </Text>
         </View>
       )}
-      <Pressable
-        style={[styles.socialButton, styles.socialButtonApple, loading && styles.buttonDisabled]}
-        disabled={loading}
-        onPress={() => {
-          hapticLight();
-          handleApple();
-        }}
-      >
-        <Text style={styles.socialButtonText}>Sign in with Apple</Text>
-      </Pressable>
 
       <Text style={styles.signUpPrompt}>
         Don&apos;t have an account?{' '}
@@ -162,17 +172,19 @@ export default function LoginScreen() {
           </Pressable>
         </Link>
       </Text>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
+  scroll: { flex: 1, backgroundColor: charcoal },
   container: {
-    flex: 1,
+    flexGrow: 1,
     padding: 24,
     justifyContent: 'center',
     gap: 14,
     backgroundColor: charcoal,
+    paddingBottom: 40,
   },
   logo: {
     alignSelf: 'center',
@@ -188,7 +200,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: BORDER,
   },
-  socialButtonApple: {
+  appleButton: {
     backgroundColor: '#000',
     borderColor: '#333',
   },

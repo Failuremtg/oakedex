@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Generates assets/images/gs-ball.png (GS Ball – gold/silver, True Master Collection icon).
+ * Generates assets/images/gs-ball.png (GS Ball – gold/silver, Grandmaster Collection icon).
  * Run: node scripts/generate-gs-ball.js
  * Requires: sharp (dev dependency)
  */

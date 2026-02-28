@@ -33,7 +33,7 @@ import {
   getCollectionDisplayName,
   getCollectionIconUri,
   getCollectionSubtitle,
-  isTrueMasterCollection,
+  isGrandmasterCollection,
 } from '@/src/lib/collectionDisplay';
 import { hapticLight } from '@/src/lib/haptics';
 
@@ -235,7 +235,7 @@ export default function HomeScreen() {
                     style={styles.ribbonIcon}
                     resizeMode="contain"
                   />
-                  {isTrueMasterCollection(coll) && (
+                  {isGrandmasterCollection(coll) && (
                     <View style={styles.ribbonStarBadge} pointerEvents="none">
                       <FontAwesome name="star" size={16} color="#000" style={styles.ribbonStarOutline} />
                       <FontAwesome name="star" size={12} color="#f0c030" style={styles.ribbonStarFill} />
@@ -283,10 +283,10 @@ export default function HomeScreen() {
                     <View style={styles.ribbonInner}>
                       <View style={styles.ribbonTextWrap}>
                         <Text style={styles.ribbonText} numberOfLines={1}>
-                          Add a collection
+                          No binders yet
                         </Text>
                         <Text style={styles.ribbonSubtitle} numberOfLines={1}>
-                          Tap to create
+                          Tap to add your first collection
                         </Text>
                       </View>
                       <View style={styles.ribbonIconWrap}>

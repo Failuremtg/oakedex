@@ -2,8 +2,10 @@ import { useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Image,
   Pressable,
+  ScrollView,
   StyleSheet,
   TextInput,
   View,
@@ -11,13 +13,14 @@ import {
 import { Text } from '@/components/Themed';
 import { useAuth } from '@/src/auth/AuthContext';
 import { charcoal, primary } from '@/constants/Colors';
+import { isDisplayNameAllowed } from '@/src/lib/displayNameFilter';
 import { hapticLight } from '@/src/lib/haptics';
 
 const BORDER = 'rgba(255,255,255,0.2)';
 const TEXT_SECONDARY = 'rgba(255,255,255,0.75)';
 
 export default function SignUpScreen() {
-  const { signUp, signInWithGoogle, signInWithApple, error, clearError, loading: authLoading } = useAuth();
+  const { signUp, signInWithGoogle, error, clearError, loading: authLoading } = useAuth();
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
@@ -34,10 +37,21 @@ export default function SignUpScreen() {
     if (!name) return;
     if (p.length < 6) return;
     if (p !== confirm) return;
+    const check = isDisplayNameAllowed(name, e);
+    if (!check.allowed) {
+      Alert.alert('Name not allowed', check.error ?? 'Please choose a different name.');
+      return;
+    }
     setBusy(true);
     const cred = await signUp(e, p, name);
     setBusy(false);
-    if (cred) router.replace('/(tabs)');
+    if (cred) {
+      Alert.alert(
+        'Check your email',
+        `We sent a verification link to ${e}.\n\nPlease verify your email then sign in.`,
+        [{ text: 'Go to sign in', onPress: () => router.replace('/login') }]
+      );
+    }
   }, [email, username, password, confirm, signUp, clearError, router]);
 
   const loading = busy || authLoading;
@@ -50,16 +64,13 @@ export default function SignUpScreen() {
     if (cred) router.replace('/(tabs)');
   }, [signInWithGoogle, clearError, router]);
 
-  const handleApple = useCallback(async () => {
-    clearError();
-    setBusy(true);
-    const cred = await signInWithApple();
-    setBusy(false);
-    if (cred) router.replace('/(tabs)');
-  }, [signInWithApple, clearError, router]);
-
   return (
-    <View style={styles.container}>
+    <ScrollView
+      style={styles.scroll}
+      contentContainerStyle={styles.container}
+      showsVerticalScrollIndicator={true}
+      keyboardShouldPersistTaps="handled"
+    >
       <Image
         source={require('@/assets/images/oakedex-logo.png')}
         style={styles.logo}
@@ -139,16 +150,6 @@ export default function SignUpScreen() {
       >
         <Text style={styles.socialButtonText}>Sign up with Google</Text>
       </Pressable>
-      <Pressable
-        style={[styles.socialButton, styles.socialButtonApple, loading && styles.buttonDisabled]}
-        disabled={loading}
-        onPress={() => {
-          hapticLight();
-          handleApple();
-        }}
-      >
-        <Text style={styles.socialButtonText}>Sign up with Apple</Text>
-      </Pressable>
 
       <Pressable
         style={styles.linkButton}
@@ -159,17 +160,19 @@ export default function SignUpScreen() {
       >
         <Text style={styles.linkText}>Back to sign in</Text>
       </Pressable>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
+  scroll: { flex: 1, backgroundColor: charcoal },
   container: {
-    flex: 1,
+    flexGrow: 1,
     padding: 24,
     justifyContent: 'center',
     gap: 14,
     backgroundColor: charcoal,
+    paddingBottom: 40,
   },
   logo: {
     alignSelf: 'center',
@@ -185,10 +188,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.12)',
     borderWidth: 1,
     borderColor: BORDER,
-  },
-  socialButtonApple: {
-    backgroundColor: '#000',
-    borderColor: '#333',
   },
   socialButtonText: { color: '#fff', fontWeight: '600', fontSize: 16 },
   buttonDisabled: { opacity: 0.6 },

@@ -8,6 +8,7 @@ import {
   View,
 } from 'react-native';
 import { Text } from '@/components/Themed';
+import { SyncLoadingScreen } from '@/components/SyncLoadingScreen';
 import { ViewModeToggle } from '@/components/ViewModeToggle';
 import { CachedImage } from '@/components/CachedImage';
 import { primary } from '@/constants/Colors';

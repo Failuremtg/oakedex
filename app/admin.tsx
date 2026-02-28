@@ -311,7 +311,20 @@ export default function AdminScreen() {
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Master set defaults (True master binder)</Text>
+            <Text style={styles.sectionTitle}>Missing images binder</Text>
+            <Text style={styles.hint}>
+              Open a special binder that lists every card the APIs load without an image. Add images there; they are saved to the cloud so all users and devices see them. When an API has an image, that is always used first.
+            </Text>
+            <Pressable
+              style={({ pressed }) => [styles.uploadBtn, pressed && styles.pressed, { marginTop: 8 }]}
+              onPress={() => router.push('/admin-missing-images')}
+            >
+              <Text style={styles.uploadBtnText}>Open missing images binder</Text>
+            </Pressable>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Master set defaults (Grandmaster binder)</Text>
             <Text style={styles.hint}>
               Choose which card version shows when a slot has no card collected. Opens the same grid as a real binder; tap a slot to pick a version, then Save to push to all users and devices.
             </Text>
@@ -319,7 +332,7 @@ export default function AdminScreen() {
               style={({ pressed }) => [styles.uploadBtn, pressed && styles.pressed, { marginTop: 8 }]}
               onPress={() => router.push('/admin-master-set')}
             >
-              <Text style={styles.uploadBtnText}>Open true master binder</Text>
+              <Text style={styles.uploadBtnText}>Open Grandmaster binder</Text>
             </Pressable>
           </View>
 

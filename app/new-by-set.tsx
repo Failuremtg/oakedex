@@ -5,6 +5,7 @@ import {
   FlatList,
   Image,
   Pressable,
+  ScrollView,
   StyleSheet,
   TextInput,
   View,
@@ -14,7 +15,7 @@ import { SyncLoadingScreen } from '@/components/SyncLoadingScreen';
 import { useAuth } from '@/src/auth/AuthContext';
 import { createCollection, loadCollectionsForDisplay } from '@/src/lib/collections';
 import { BINDER_COLOR_OPTIONS } from '@/src/constants/binderColors';
-import type { EditionFilter } from '@/src/types';
+import { setHasFirstEdition, type EditionFilter } from '@/src/types';
 import { getExcludedSetIds, getSetsWithCache } from '@/src/lib/cardDataCache';
 import { normalizeTcgdexImageUrl, type TCGdexLang, type TCGdexSetBrief } from '@/src/lib/tcgdex';
 
@@ -30,6 +31,13 @@ export default function NewBySetScreen() {
   const [selectedSet, setSelectedSet] = useState<TCGdexSetBrief | null>(null);
   const [editionFilter, setEditionFilter] = useState<EditionFilter>('all');
   const [selectedColorId, setSelectedColorId] = useState<string | null>(null);
+
+  // Post-Skyridge sets (2004+) have no 1st Edition; clear 1st-ed-only if user picked an older filter
+  useEffect(() => {
+    if (selectedSet && !setHasFirstEdition(selectedSet.releaseDate) && editionFilter === '1stEditionOnly') {
+      setEditionFilter('all');
+    }
+  }, [selectedSet?.id, selectedSet?.releaseDate, editionFilter]);
 
   useFocusEffect(
     useCallback(() => {
@@ -66,7 +74,7 @@ export default function NewBySetScreen() {
       binderColor: selectedColorId,
     });
     setCreating(false);
-    router.replace(`/binder/${coll.id}`);
+    router.replace(`/binder/${coll.id}?edit=1`);
   }, [selectedSet, editionFilter, selectedColorId, creating, router]);
 
   if (loading) {
@@ -79,7 +87,12 @@ export default function NewBySetScreen() {
 
   if (selectedSet) {
     return (
-      <View style={styles.container}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.confirmContent}
+        showsVerticalScrollIndicator={true}
+        keyboardShouldPersistTaps="handled"
+      >
         <Text style={styles.confirmTitle}>{selectedSet.name}</Text>
         <Image
           source={
@@ -91,9 +104,15 @@ export default function NewBySetScreen() {
           resizeMode="contain"
         />
         <Text style={styles.label}>Edition</Text>
-        <Text style={styles.sublabel}>1st Edition only, Unlimited only, or include all. Default: Include all.</Text>
+        <Text style={styles.sublabel}>
+          {setHasFirstEdition(selectedSet.releaseDate)
+            ? '1st Edition only, Unlimited only, or include all. Default: Include all.'
+            : 'This set is Unlimited only (no 1st Edition).'}
+        </Text>
         <View style={styles.editionRow}>
-          {(['all', '1stEditionOnly', 'unlimitedOnly'] as const).map((value) => (
+          {(['all', '1stEditionOnly', 'unlimitedOnly'] as const)
+            .filter((value) => value !== '1stEditionOnly' || setHasFirstEdition(selectedSet.releaseDate))
+            .map((value) => (
             <Pressable
               key={value}
               style={({ pressed }) => [
@@ -148,7 +167,7 @@ export default function NewBySetScreen() {
             )}
           </Pressable>
         </View>
-      </View>
+      </ScrollView>
     );
   }
 
@@ -193,7 +212,9 @@ export default function NewBySetScreen() {
 }
 
 const styles = StyleSheet.create({
+  scroll: { flex: 1, backgroundColor: '#2d2d2d' },
   container: { flex: 1, backgroundColor: '#2d2d2d', padding: 20 },
+  confirmContent: { flexGrow: 1, padding: 20, paddingBottom: 40 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#2d2d2d' },
   hint: { fontSize: 14, color: 'rgba(255,255,255,0.8)', marginBottom: 12 },
   search: {

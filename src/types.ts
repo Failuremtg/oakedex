@@ -2,19 +2,22 @@
  * Oakedex data model – binders, slots, card references.
  */
 
-export type BinderType = 'collect_them_all' | 'master_dex' | 'master_set' | 'single_pokemon' | 'by_set';
+export type BinderType = 'collect_them_all' | 'master_dex' | 'master_set' | 'single_pokemon' | 'by_set' | 'custom';
 
-/** Options when creating a Master Set (one of each Pokémon). All true = True Master Collection. */
+/** Options when creating a Master Set (one of each Pokémon). All true = Grandmaster Collection. */
 export interface MasterSetOptions {
   regionalForms?: boolean;
-  variations?: boolean;  // e.g. all 28 Unown
+  /** @deprecated Use variationGroups instead. When true, adds Unown. */
+  variations?: boolean;
+  /** Selected variation groups (e.g. 'unown', 'tauros_forms', 'castform', …). */
+  variationGroups?: string[];
   megas?: boolean;
   gmax?: boolean;
 }
 
-export type CardVariant = 'normal' | 'reverse' | 'holo' | 'firstEdition' | 'wPromo';
+export type CardVariant = 'normal' | 'reverse' | 'holo' | 'firstEdition' | 'wPromo' | 'masterBall';
 
-export const CARD_VARIANTS: CardVariant[] = ['normal', 'reverse', 'holo', 'firstEdition', 'wPromo'];
+export const CARD_VARIANTS: CardVariant[] = ['normal', 'reverse', 'holo', 'firstEdition', 'wPromo', 'masterBall'];
 
 /** Slot key for a specific card + variant (single_pokemon and by_set). */
 export function cardSlotKey(cardId: string, variant: CardVariant): string {
@@ -42,13 +45,7 @@ export function isSingleVersionCard(card: { name?: string } | null): boolean {
 export function getDisplayVariants(card: { name?: string; variants?: Record<string, boolean> | null } | null): CardVariant[] {
   const variants = getVariantsFromCard(card);
   const single = isSingleVersionCard(card);
-  const result = !single ? variants : (variants.includes('normal') ? ['normal'] : variants);
-  // #region agent log
-  if (card?.variants && (card.variants as Record<string, boolean>).holo === true && !result.includes('holo')) {
-    fetch('http://127.0.0.1:7774/ingest/2c6726e5-47ef-4e43-8edf-38efd07b03fd',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5c966b'},body:JSON.stringify({sessionId:'5c966b',hypothesisId:'H2_H3',location:'types.ts:getDisplayVariants',message:'Card has holo true but display variants missing holo',data:{name:card?.name,variantsFromCard:variants,isSingleVersion:single,result},timestamp:Date.now()})}).catch(()=>{});
-  }
-  // #endregion
-  return result;
+  return !single ? variants : (variants.includes('normal') ? ['normal'] : variants);
 }
 
 /**
@@ -79,18 +76,32 @@ export function filterVariantsBySetCardCount(
     if (v === 'firstEdition' && setCardCount.firstEd === 0) return false;
     return true;
   });
-  // #region agent log
-  if (variants.includes('holo') && !out.includes('holo')) {
-    fetch('http://127.0.0.1:7774/ingest/2c6726e5-47ef-4e43-8edf-38efd07b03fd',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5c966b'},body:JSON.stringify({sessionId:'5c966b',hypothesisId:'H1_H4',location:'types.ts:filterVariantsBySetCardCount',message:'Holo removed by set cardCount',data:{setCardCount:JSON.stringify(setCardCount),variantsIn:variants,variantsOut:out},timestamp:Date.now()})}).catch(()=>{});
-  }
-  // #endregion
   return out.length > 0 ? out : variants;
+}
+
+/** Last set that had 1st Edition was Skyridge (2003). Sets released after this are Unlimited only. */
+export const LAST_FIRST_EDITION_RELEASE_DATE = '2003-12-31';
+
+/** True if the set had a 1st Edition print run (release date on or before Skyridge 2003). */
+export function setHasFirstEdition(releaseDate: string | undefined): boolean {
+  if (!releaseDate || typeof releaseDate !== 'string') return true; // unknown date: allow 1st ed
+  return releaseDate <= LAST_FIRST_EDITION_RELEASE_DATE;
+}
+
+/** Remove firstEdition from variants when the set is after Skyridge (no 1st Edition in those sets). */
+export function filterVariantsBySetReleaseDate(
+  variants: CardVariant[],
+  releaseDate: string | undefined
+): CardVariant[] {
+  if (setHasFirstEdition(releaseDate)) return variants;
+  return variants.filter((v) => v !== 'firstEdition');
 }
 
 /** Display label for variant (e.g. "1st Edition" for firstEdition). */
 export function getVariantLabel(v: CardVariant): string {
   if (v === 'firstEdition') return '1st Edition';
   if (v === 'wPromo') return 'W Promo';
+  if (v === 'masterBall') return 'Master Ball';
   if (v === 'normal') return 'Normal';
   return v.charAt(0).toUpperCase() + v.slice(1);
 }
@@ -111,7 +122,7 @@ export function getValidVariantForDisplay(
 /** Filter for 1st Edition vs Unlimited when creating a binder. Default 'all'. */
 export type EditionFilter = '1stEditionOnly' | 'unlimitedOnly' | 'all';
 
-const UNLIMITED_VARIANTS: CardVariant[] = ['normal', 'reverse', 'holo'];
+const UNLIMITED_VARIANTS: CardVariant[] = ['normal', 'reverse', 'holo', 'masterBall'];
 
 /** Filter variant list by edition preference. Returns only variants that match the filter. */
 export function filterVariantsByEdition(variants: CardVariant[], editionFilter: EditionFilter | undefined): CardVariant[] {
@@ -155,7 +166,7 @@ export interface Collection {
   includeRegionalForms?: boolean;
   /** Selected languages for Single Pokemon or Master Set (e.g. ['en', 'ja']). */
   languages?: string[];
-  /** For master_set: which variants to include. All true = True Master Collection. */
+  /** For master_set: which variants to include. All true = Grandmaster Collection. */
   masterSetOptions?: MasterSetOptions;
   /** 1st Edition only, Unlimited only, or Include all. Default 'all'. */
   editionFilter?: EditionFilter;
@@ -163,11 +174,14 @@ export interface Collection {
   setId?: string;
   setName?: string;
   setSymbol?: string;
+  /** For custom multi-Pokémon: chosen Pokémon dex ids and display names. Empty custom has neither. */
+  customPokemonIds?: number[];
+  customPokemonNames?: string[];
   /** Binder spine accent color (id from BINDER_COLOR_OPTIONS or hex). */
   binderColor?: string;
   slots: Slot[];
-  /** Local-only: display name and set name for user-added cards (key = cardId, e.g. user-xxx). */
-  userCards?: Record<string, { name: string; setName: string }>;
+  /** Local-only: display name, set name, optional collector number; optional slotKey for version-choice cards (master/set); optional variant. */
+  userCards?: Record<string, { name: string; setName: string; localId?: string; slotKey?: string; variant?: CardVariant }>;
   createdAt: number;
   updatedAt: number;
 }

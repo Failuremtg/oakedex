@@ -5,7 +5,7 @@
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { TCGdexSetBrief, TCGdexSet } from './tcgdex';
+import type { TCGdexSetBrief, TCGdexSet, TCGdexCard, TCGdexCardBrief } from './tcgdex';
 import { SET_IDS_WITHOUT_CARDS, isPocketSet } from './tcgdex';
 import type { PokemonSummary } from '@/src/types';
 
@@ -16,6 +16,18 @@ const KEY_POCKET_SET_IDS = `${PREFIX}pocketSetIds`;
 const KEY_EXCLUDED_SET_IDS = `${PREFIX}excludedSetIds`;
 const KEY_SPECIES = `${PREFIX}species`;
 const KEY_SET_PREFIX = `${PREFIX}set_`;
+const KEY_CARD_PREFIX = `${PREFIX}card_`;
+const KEY_CARDS_BY_NAME_PREFIX = `${PREFIX}name_`;
+
+/** Sanitize for AsyncStorage key (cardId may contain chars we keep, e.g. hyphen). */
+function cardKey(lang: string, cardId: string): string {
+  return KEY_CARD_PREFIX + lang + '_' + cardId.replace(/[^a-zA-Z0-9-]/g, '_');
+}
+
+function nameSearchKey(lang: string, name: string, exact: boolean): string {
+  const safe = encodeURIComponent(name).slice(0, 120);
+  return KEY_CARDS_BY_NAME_PREFIX + lang + '_' + (exact ? '1' : '0') + '_' + safe;
+}
 
 /** Consider cache stale after this many ms (e.g. refresh on next app open). */
 export const CACHE_STALE_MS = 24 * 60 * 60 * 1000; // 24h
@@ -86,6 +98,47 @@ export async function getCachedSetCards(setId: string): Promise<TCGdexSet | null
 
 export async function setCachedSetCards(setData: TCGdexSet): Promise<void> {
   await AsyncStorage.setItem(KEY_SET_PREFIX + setData.id, JSON.stringify(setData));
+}
+
+/** Single card by lang + cardId (full TCGdex card with image, variants, set). */
+export async function getCachedCard(lang: string, cardId: string): Promise<TCGdexCard | null> {
+  const raw = await AsyncStorage.getItem(cardKey(lang, cardId));
+  if (raw == null) return null;
+  try {
+    const obj = JSON.parse(raw) as TCGdexCard;
+    return obj?.id != null ? obj : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function setCachedCard(lang: string, cardId: string, card: TCGdexCard): Promise<void> {
+  await AsyncStorage.setItem(cardKey(lang, cardId), JSON.stringify(card));
+}
+
+/** Cards-by-name search result (briefs). */
+export async function getCachedCardsByName(
+  lang: string,
+  name: string,
+  exact: boolean
+): Promise<TCGdexCardBrief[] | null> {
+  const raw = await AsyncStorage.getItem(nameSearchKey(lang, name, exact));
+  if (raw == null) return null;
+  try {
+    const arr = JSON.parse(raw) as TCGdexCardBrief[];
+    return Array.isArray(arr) ? arr : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function setCachedCardsByName(
+  lang: string,
+  name: string,
+  exact: boolean,
+  cards: TCGdexCardBrief[]
+): Promise<void> {
+  await AsyncStorage.setItem(nameSearchKey(lang, name, exact), JSON.stringify(cards));
 }
 
 /** Set IDs to hide from set picker (no card list in API). Merges constant list with any discovered and stored. */

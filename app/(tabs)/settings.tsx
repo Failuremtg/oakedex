@@ -5,18 +5,22 @@ import {
   Alert,
   Image,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
+  TextInput,
   View,
 } from 'react-native';
 import { Text } from '@/components/Themed';
 import { useAuth } from '@/src/auth/AuthContext';
+import { submitFeedback } from '@/src/lib/feedback';
 import { isFirebaseConfigured } from '@/src/lib/firebase';
 import { hapticLight } from '@/src/lib/haptics';
 import { clearAdminCache, fetchAdminConfig, setAdminCache, useIsAdmin } from '@/src/lib/adminConfig';
 import { pickAndSaveCustomPhoto, setProfilePicturePref } from '@/src/lib/profilePicture';
 import { getTrainerSpriteUrl, TRAINER_SPRITES } from '@/src/constants/trainerSprites';
+import { useSubscription } from '@/src/subscription/SubscriptionContext';
 
 type AdminCheckResult =
   | { ok: true; emails: string[]; yourEmail: string; youAreAdmin: boolean }
@@ -26,10 +30,14 @@ export default function SettingsScreen() {
   const router = useRouter();
   const { user, signOut } = useAuth();
   const { isAdmin, loading, refetch } = useIsAdmin(user);
+  const { isSubscriber, isLoading: subLoading, restorePurchases, presentCustomerCenter } = useSubscription();
   const [checking, setChecking] = useState(false);
   const [lastCheck, setLastCheck] = useState<AdminCheckResult | null>(null);
   const [spritePickerVisible, setSpritePickerVisible] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [feedbackModalVisible, setFeedbackModalVisible] = useState(false);
+  const [feedbackText, setFeedbackText] = useState('');
+  const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
 
   const onCheckAdminConfig = useCallback(async () => {
     if (!user) return;
@@ -79,6 +87,22 @@ export default function SettingsScreen() {
     // Stay in app as guest; no redirect to login
   }, [signOut]);
 
+  const [restoring, setRestoring] = useState(false);
+  const handleRestorePurchases = useCallback(async () => {
+    setRestoring(true);
+    const { success, error: err } = await restorePurchases();
+    setRestoring(false);
+    if (success) {
+      Alert.alert('Restored', 'Your subscription has been restored.');
+    } else {
+      Alert.alert('Nothing to restore', err ?? 'No active subscription found.');
+    }
+  }, [restorePurchases]);
+
+  const handleManageSubscription = useCallback(async () => {
+    await presentCustomerCenter();
+  }, [presentCustomerCenter]);
+
   const handleUploadPhoto = useCallback(async () => {
     setUploadingPhoto(true);
     try {
@@ -97,6 +121,44 @@ export default function SettingsScreen() {
     setSpritePickerVisible(false);
     Alert.alert('Done', 'Profile picture updated. It will show on your Trainer ID.');
   }, []);
+
+  const openFeedbackModal = useCallback(() => {
+    if (!user) {
+      Alert.alert(
+        'Sign in to submit feedback',
+        'Please sign in so we can associate your feedback with your account.',
+        [{ text: 'OK' }, { text: 'Sign in', onPress: () => router.push('/login') }]
+      );
+      return;
+    }
+    setFeedbackText('');
+    setFeedbackModalVisible(true);
+  }, [user, router]);
+
+  const submitFeedbackPress = useCallback(async () => {
+    const trimmed = feedbackText.trim();
+    if (!trimmed) {
+      Alert.alert('Enter feedback', 'Please type your message before submitting.');
+      return;
+    }
+    if (!user) return;
+    setFeedbackSubmitting(true);
+    try {
+      await submitFeedback({
+        message: trimmed,
+        userId: user.uid,
+        userEmail: user.email ?? null,
+      });
+      setFeedbackModalVisible(false);
+      setFeedbackText('');
+      Alert.alert('Thank you', 'Your feedback has been sent. We appreciate it!');
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      Alert.alert('Could not send', msg);
+    } finally {
+      setFeedbackSubmitting(false);
+    }
+  }, [feedbackText, user]);
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -185,13 +247,79 @@ export default function SettingsScreen() {
       )}
 
       {user != null && isAdmin && !loading && (
+        <>
+          <Pressable
+            style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+            onPress={() => router.push('/admin')}
+          >
+            <Text style={styles.rowText}>Admin console</Text>
+            <Text style={styles.rowHint}>Upload images for missing cards (stored on device)</Text>
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+            onPress={() => {
+              hapticLight();
+              router.push('/admin-feedback');
+            }}
+          >
+            <Text style={styles.rowText}>View feedback</Text>
+            <Text style={styles.rowHint}>Read, download, and delete user feedback</Text>
+          </Pressable>
+        </>
+      )}
+
+      <View style={styles.section}>
+        <Text style={styles.label}>Feedback</Text>
+        <Text style={styles.hint}>Suggestions, bug reports, or anything you’d like to share. Only you and the app owner can see submissions.</Text>
         <Pressable
-          style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
-          onPress={() => router.push('/admin')}
+          style={({ pressed }) => [styles.actionBtn, pressed && styles.rowPressed]}
+          onPress={() => {
+            hapticLight();
+            openFeedbackModal();
+          }}
         >
-          <Text style={styles.rowText}>Admin console</Text>
-          <Text style={styles.rowHint}>Upload images for missing cards (stored on device)</Text>
+          <Text style={styles.actionBtnText}>Submit feedback</Text>
         </Pressable>
+      </View>
+
+      {(Platform.OS === 'ios' || Platform.OS === 'android') && (
+        <View style={styles.section}>
+          <Text style={styles.label}>Subscription</Text>
+          {subLoading ? (
+            <ActivityIndicator size="small" color="rgba(255,255,255,0.5)" style={{ marginTop: 8 }} />
+          ) : isSubscriber ? (
+            <>
+              <Text style={[styles.value, styles.premiumActiveText]}>Oakedex Premium — Active</Text>
+              <Pressable
+                style={({ pressed }) => [styles.actionBtn, pressed && styles.rowPressed]}
+                onPress={handleManageSubscription}
+              >
+                <Text style={styles.actionBtnText}>Manage subscription</Text>
+              </Pressable>
+            </>
+          ) : (
+            <>
+              <Text style={styles.hint}>Unlock custom binders, unlimited binders, and PDF export.</Text>
+              <Pressable
+                style={({ pressed }) => [styles.actionBtn, styles.premiumBtn, pressed && styles.rowPressed]}
+                onPress={() => { hapticLight(); router.push('/paywall'); }}
+              >
+                <Text style={styles.actionBtnText}>Upgrade to Premium</Text>
+              </Pressable>
+            </>
+          )}
+          <Pressable
+            style={({ pressed }) => [styles.actionBtn, styles.actionBtnSecondary, { marginTop: 8 }, pressed && styles.rowPressed, restoring && styles.disabled]}
+            onPress={handleRestorePurchases}
+            disabled={restoring}
+          >
+            {restoring ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Text style={styles.actionBtnText}>Restore purchases</Text>
+            )}
+          </Pressable>
+        </View>
       )}
 
       {user != null && (
@@ -202,6 +330,46 @@ export default function SettingsScreen() {
           <Text style={styles.signOutText}>Sign out</Text>
         </Pressable>
       )}
+
+      <Modal visible={feedbackModalVisible} transparent animationType="fade">
+        <Pressable style={styles.modalBackdrop} onPress={() => !feedbackSubmitting && setFeedbackModalVisible(false)}>
+          <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
+            <Text style={styles.modalTitle}>Submit feedback</Text>
+            <Text style={styles.feedbackHint}>Your message is sent only to the app developer.</Text>
+            <TextInput
+              style={styles.feedbackInput}
+              placeholder="Type your feedback, suggestion, or bug report..."
+              placeholderTextColor="rgba(255,255,255,0.4)"
+              value={feedbackText}
+              onChangeText={setFeedbackText}
+              multiline
+              numberOfLines={4}
+              textAlignVertical="top"
+              editable={!feedbackSubmitting}
+            />
+            <View style={styles.feedbackButtons}>
+              <Pressable
+                style={({ pressed }) => [styles.modalCloseBtn, pressed && styles.rowPressed]}
+                onPress={() => !feedbackSubmitting && setFeedbackModalVisible(false)}
+                disabled={feedbackSubmitting}
+              >
+                <Text style={styles.modalCloseText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [styles.feedbackSubmitBtn, pressed && styles.rowPressed]}
+                onPress={submitFeedbackPress}
+                disabled={feedbackSubmitting || !feedbackText.trim()}
+              >
+                {feedbackSubmitting ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.feedbackSubmitText}>Send</Text>
+                )}
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       <Modal visible={spritePickerVisible} transparent animationType="fade">
         <Pressable style={styles.modalBackdrop} onPress={() => setSpritePickerVisible(false)}>
@@ -296,6 +464,8 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   actionBtnText: { fontSize: 15, color: '#fff', fontWeight: '600' },
+  premiumBtn: { backgroundColor: 'rgba(255,207,28,0.25)', borderWidth: 1, borderColor: 'rgba(255,207,28,0.5)' },
+  premiumActiveText: { color: '#86efac', fontWeight: '600', marginBottom: 4 },
   signOutBtn: {
     marginTop: 8,
     paddingVertical: 14,
@@ -351,4 +521,29 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalCloseText: { fontSize: 16, color: 'rgba(255,255,255,0.9)' },
+  feedbackHint: { fontSize: 13, color: 'rgba(255,255,255,0.6)', marginBottom: 12 },
+  feedbackInput: {
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 10,
+    padding: 14,
+    color: '#fff',
+    fontSize: 15,
+    minHeight: 120,
+    maxHeight: 200,
+  },
+  feedbackButtons: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 12,
+    marginTop: 16,
+  },
+  feedbackSubmitBtn: {
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 10,
+    backgroundColor: 'rgba(76, 175, 80, 0.6)',
+    alignItems: 'center',
+    minWidth: 80,
+  },
+  feedbackSubmitText: { fontSize: 16, color: '#fff', fontWeight: '600' },
 });

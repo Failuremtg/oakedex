@@ -193,23 +193,45 @@ export async function getSet(lang: TCGdexLang, setId: string): Promise<TCGdexSet
   return fetchJson<TCGdexSet>(`${BASE}/${toTcgdexApiLang(lang)}/sets/${setId}`);
 }
 
-/** Get a single card by id (full details including dexId and variants). */
+/** Get a single card by id (full details including dexId and variants). Uses persistent cache so revisiting a binder or search is instant. When TCGdex has no image, fills from Pokémon TCG API (pokemontcg.io) if available. */
 export async function getCard(lang: TCGdexLang, cardId: string): Promise<TCGdexCard> {
-  return fetchJson<TCGdexCard>(`${BASE}/${toTcgdexApiLang(lang)}/cards/${cardId}`);
+  const { getCachedCard, setCachedCard } = await import('./cardDataCache');
+  const cached = await getCachedCard(toTcgdexApiLang(lang), cardId);
+  if (cached != null) return cached;
+  const card = await fetchJson<TCGdexCard>(`${BASE}/${toTcgdexApiLang(lang)}/cards/${cardId}`);
+  if (!card.image) {
+    try {
+      const { getFallbackCardImageUrl } = await import('./pokemonTcgApi');
+      const fallbackUrl = await getFallbackCardImageUrl(card.id);
+      if (fallbackUrl) card.image = fallbackUrl;
+    } catch {
+      // keep card as-is
+    }
+  }
+  await setCachedCard(toTcgdexApiLang(lang), cardId, card).catch(() => {});
+  return card;
 }
 
 /**
  * Search cards by name (lax match). Returns card briefs.
  * Use strict match with eq: for exact name (e.g. "Charizard" only).
+ * Results are cached so repeat searches (e.g. same Pokémon in another binder) load instantly.
  */
 export async function getCardsByName(
   lang: TCGdexLang,
   name: string,
   options?: { exact?: boolean }
 ): Promise<TCGdexCardBrief[]> {
-  const filter = options?.exact ? `name=eq:${encodeURIComponent(name)}` : `name=${encodeURIComponent(name)}`;
-  const url = `${BASE}/${toTcgdexApiLang(lang)}/cards?${filter}`;
-  return fetchJson<TCGdexCardBrief[]>(url);
+  const exact = options?.exact ?? false;
+  const apiLang = toTcgdexApiLang(lang);
+  const { getCachedCardsByName, setCachedCardsByName } = await import('./cardDataCache');
+  const cached = await getCachedCardsByName(apiLang, name, exact);
+  if (cached != null) return cached;
+  const filter = exact ? `name=eq:${encodeURIComponent(name)}` : `name=${encodeURIComponent(name)}`;
+  const url = `${BASE}/${apiLang}/cards?${filter}`;
+  const cards = await fetchJson<TCGdexCardBrief[]>(url);
+  await setCachedCardsByName(apiLang, name, exact, cards).catch(() => {});
+  return cards;
 }
 
 /**

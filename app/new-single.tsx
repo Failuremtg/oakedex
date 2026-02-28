@@ -6,6 +6,7 @@ import {
   Image,
   Modal,
   Pressable,
+  ScrollView,
   StyleSheet,
   Switch,
   TextInput,
@@ -103,7 +104,7 @@ export default function NewSingleScreen() {
     });
     setCreating(false);
     setSelectedPokemon(null);
-    router.replace(`/binder/${coll.id}`);
+    router.replace(`/binder/${coll.id}?edit=1`);
   }, [selectedPokemon, binderName, includeRegionalForms, selectedLanguages, editionFilter, selectedColorId, creating, router]);
 
   const toggleLanguage = useCallback((langId: TCGdexLang) => {
@@ -185,6 +186,12 @@ export default function NewSingleScreen() {
             onPress={(e) => e.stopPropagation()}
           >
             {selectedPokemon && (
+              <ScrollView
+                style={styles.modalScroll}
+                contentContainerStyle={styles.modalScrollContent}
+                showsVerticalScrollIndicator={true}
+                keyboardShouldPersistTaps="handled"
+              >
               <>
                 <View style={styles.modalHeader}>
                   <Image
@@ -309,6 +316,7 @@ export default function NewSingleScreen() {
                   </Pressable>
                 </View>
               </>
+              </ScrollView>
             )}
           </Pressable>
         </Pressable>
@@ -352,12 +360,15 @@ const styles = StyleSheet.create({
   modalCard: {
     width: '100%',
     maxWidth: 400,
+    maxHeight: '85%',
     backgroundColor: '#2d2d2d',
     borderRadius: 16,
     padding: 20,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.1)',
   },
+  modalScroll: { flex: 1 },
+  modalScrollContent: { paddingBottom: 24 },
   modalHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
   modalSprite: { width: 56, height: 56, marginRight: 12 },
   modalTitle: { fontSize: 20, fontWeight: '700', color: '#fff' },

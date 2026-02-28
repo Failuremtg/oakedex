@@ -7,6 +7,7 @@ import {
   GoogleAuthProvider,
   OAuthProvider,
   onAuthStateChanged,
+  sendEmailVerification,
   sendPasswordResetEmail,
   signInWithCredential,
   signInWithEmailAndPassword,
@@ -15,13 +16,13 @@ import {
   updateProfile,
   type UserCredential,
 } from 'firebase/auth';
-import Constants from 'expo-constants';
 import { Platform } from 'react-native';
+import * as Crypto from 'expo-crypto';
 import { getFirebaseAuth } from '@/src/lib/firebase';
 import { setSyncUserId } from '@/src/lib/syncUser';
 import { getFriendlyAuthErrorMessage } from '@/src/auth/authErrors';
 
-// Native Google/Apple sign-in (optional deps to avoid breaking web)
+// Native Google sign-in (expo-auth-session) – optional to avoid breaking web
 let AuthSession: typeof import('expo-auth-session') | null = null;
 let AppleAuth: typeof import('expo-apple-authentication') | null = null;
 if (Platform.OS !== 'web') {
@@ -30,12 +31,10 @@ if (Platform.OS !== 'web') {
   } catch {
     // expo-auth-session not installed
   }
-  if (Platform.OS === 'ios') {
-    try {
-      AppleAuth = require('expo-apple-authentication');
-    } catch {
-      // expo-apple-authentication not installed
-    }
+  try {
+    AppleAuth = require('expo-apple-authentication');
+  } catch {
+    // expo-apple-authentication not installed
   }
 }
 
@@ -90,6 +89,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setError(null);
       try {
         const cred = await signInWithEmailAndPassword(auth, email, password);
+        if (!cred.user.emailVerified) {
+          // Resend verification link on every failed attempt so the user always
+          // has a fresh link, then sign them back out
+          await sendEmailVerification(cred.user).catch(() => {});
+          await firebaseSignOut(auth);
+          setError(
+            'Please verify your email before signing in. A new verification link has been sent to ' +
+              email +
+              '.'
+          );
+          return null;
+        }
         return cred;
       } catch (e: unknown) {
         setError(getFriendlyAuthErrorMessage(e));
@@ -111,6 +122,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (cred.user && displayName?.trim()) {
           await updateProfile(cred.user, { displayName: displayName.trim() });
         }
+        // Send verification email — user must verify before they can sign in
+        await sendEmailVerification(cred.user);
+        // Sign out immediately so they are forced to verify first
+        await firebaseSignOut(auth);
         return cred;
       } catch (e: unknown) {
         setError(getFriendlyAuthErrorMessage(e));
@@ -151,14 +166,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const cred = await signInWithPopup(auth, new GoogleAuthProvider());
         return cred;
       }
-      // Native: use browser OAuth then Firebase credential
+      // Native: use browser OAuth then Firebase credential. Always use Expo proxy
+      // so redirect URI is https://auth.expo.io/... (allowed by Google Web client).
+      // Works in Expo Go, dev builds, and APK without custom scheme in Google Cloud.
       if (!AuthSession || !GOOGLE_WEB_CLIENT_ID) {
         setError('Google sign-in is not set up. Set EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID in .env and add the redirect URI in Google Cloud Console.');
         return null;
       }
-      const redirectUri = AuthSession.makeRedirectUri({ scheme: 'oakedex', path: 'redirect' });
-      // In Expo Go, custom scheme redirect often fails; use proxy so it works on device
-      const useProxy = Constants.appOwnership === 'expo';
+      const useProxy = true;
+      const redirectUri = AuthSession.makeRedirectUri({ useProxy });
       const request = await AuthSession.loadAsync(
         {
           clientId: GOOGLE_WEB_CLIENT_ID,
@@ -201,44 +217,56 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setError(NOT_CONFIGURED_MSG);
       return null;
     }
+    if (!AppleAuth) {
+      setError('Sign in with Apple is not available.');
+      return null;
+    }
+    const available = await AppleAuth.isAvailableAsync().catch(() => false);
+    if (!available) {
+      setError('Sign in with Apple is not available on this device.');
+      return null;
+    }
     setError(null);
     try {
-      if (Platform.OS === 'web') {
-        const provider = new OAuthProvider('apple.com');
-        const cred = await signInWithPopup(auth, provider);
-        return cred;
-      }
-      if (Platform.OS !== 'ios') {
-        setError('Apple Sign In is only available on iPhone, iPad, or web.');
-        return null;
-      }
-      if (!AppleAuth) {
-        setError(
-          'Apple Sign In requires a development build (not Expo Go). Build with EAS or run on web.'
-        );
-        return null;
-      }
-      const { identityToken } = await AppleAuth.signInAsync({
+      const rawNonce = Math.random().toString(36).slice(2) + Date.now().toString(36);
+      const hashedNonce = await Crypto.digestStringAsync(
+        Crypto.CryptoDigestAlgorithm.SHA256,
+        rawNonce
+      );
+      const credential = await AppleAuth.signInAsync({
         requestedScopes: [
           AppleAuth.AppleAuthenticationScope.FULL_NAME,
           AppleAuth.AppleAuthenticationScope.EMAIL,
         ],
+        nonce: hashedNonce,
       });
+      const { identityToken } = credential;
       if (!identityToken) {
-        setError('Sign-in was cancelled.');
+        setError('Apple did not return an identity token.');
         return null;
       }
       const provider = new OAuthProvider('apple.com');
-      const credential = provider.credential({ idToken: identityToken });
-      const cred = await signInWithCredential(auth, credential);
+      const appleCredential = provider.credential({
+        idToken: identityToken,
+        rawNonce,
+      });
+      const cred = await signInWithCredential(auth, appleCredential);
+      if (cred.user && credential.fullName) {
+        const given = credential.fullName.givenName ?? '';
+        const family = credential.fullName.familyName ?? '';
+        const displayName = [given, family].filter(Boolean).join(' ').trim();
+        if (displayName) {
+          await updateProfile(cred.user, { displayName }).catch(() => {});
+        }
+      }
       return cred;
     } catch (e: unknown) {
       const err = e as { code?: string };
       if (err?.code === 'ERR_REQUEST_CANCELED') {
         setError('Sign-in was cancelled.');
-        return null;
+      } else {
+        setError(getFriendlyAuthErrorMessage(e));
       }
-      setError(getFriendlyAuthErrorMessage(e));
       return null;
     }
   }, [auth]);

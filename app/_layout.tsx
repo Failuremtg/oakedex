@@ -7,6 +7,7 @@ import { useEffect } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import 'react-native-reanimated';
 import { AuthProvider } from '@/src/auth/AuthContext';
+import { SubscriptionProvider } from '@/src/subscription/SubscriptionContext';
 import { charcoal } from '@/constants/Colors';
 
 export {
@@ -50,6 +51,7 @@ function RootLayoutNav() {
     <SafeAreaProvider>
       <ThemeProvider value={DarkTheme}>
         <AuthProvider>
+          <SubscriptionProvider>
           <Stack>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen
@@ -84,9 +86,11 @@ function RootLayoutNav() {
             }}
           />
           <Stack.Screen name="card-picker" options={{ title: 'Choose card', presentation: 'modal' }} />
+          <Stack.Screen name="card-search-add" options={{ title: 'Add card', presentation: 'modal' }} />
           <Stack.Screen name="new-single" options={{ title: 'New Single Pokémon' }} />
           <Stack.Screen name="new-master-set" options={{ title: 'New Master Set' }} />
           <Stack.Screen name="new-by-set" options={{ title: 'Specific Set Collection' }} />
+          <Stack.Screen name="new-custom" options={{ title: 'Custom binder' }} />
           <Stack.Screen
             name="admin"
             options={{
@@ -98,13 +102,38 @@ function RootLayoutNav() {
           <Stack.Screen
             name="admin-master-set"
             options={{
-              title: 'True master binder',
+              title: 'Grandmaster binder',
               headerShown: false,
               contentStyle: { backgroundColor: charcoal },
             }}
           />
+          <Stack.Screen
+            name="admin-missing-images"
+            options={{
+              title: 'Missing images',
+              headerShown: false,
+              contentStyle: { backgroundColor: charcoal },
+            }}
+          />
+          <Stack.Screen
+            name="admin-feedback"
+            options={{
+              title: 'Feedback',
+              headerShown: true,
+              contentStyle: { backgroundColor: charcoal },
+            }}
+          />
           <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+          <Stack.Screen
+            name="paywall"
+            options={{
+              title: 'Subscribe',
+              presentation: 'modal',
+              contentStyle: { backgroundColor: charcoal },
+            }}
+          />
           </Stack>
+          </SubscriptionProvider>
         </AuthProvider>
       </ThemeProvider>
     </SafeAreaProvider>

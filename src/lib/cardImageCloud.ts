@@ -27,11 +27,29 @@ function safePath(cardId: string): string {
 
 const urlCache = new Map<string, string>();
 
-/** Get image data as Blob or base64 for upload. fetch(fileUri) often fails on React Native. */
+/** Chunked ArrayBuffer → base64 (avoids "Blob from ArrayBuffer" unsupported in React Native). */
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  const chunkSize = 8192;
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.length));
+    binary += String.fromCharCode.apply(null, chunk as unknown as number[]);
+  }
+  return btoa(binary);
+}
+
+/** Get image data as Blob (web) or base64 (RN). Avoids response.blob() on RN (ArrayBuffer/Blob not supported). */
 async function getImageDataForUpload(uri: string): Promise<{ blob?: Blob; base64?: string }> {
-  const isFileUri = uri.startsWith('file://');
-  if (Platform.OS !== 'web' && isFileUri) {
-    const base64 = await readAsStringAsync(uri, { encoding: 'base64' });
+  if (Platform.OS !== 'web') {
+    if (uri.startsWith('file://')) {
+      const base64 = await readAsStringAsync(uri, { encoding: 'base64' });
+      return { base64 };
+    }
+    const response = await fetch(uri);
+    if (!response.ok) throw new Error(`Failed to read image: ${response.status}`);
+    const buffer = await response.arrayBuffer();
+    const base64 = arrayBufferToBase64(buffer);
     return { base64 };
   }
   try {
@@ -39,7 +57,7 @@ async function getImageDataForUpload(uri: string): Promise<{ blob?: Blob; base64
     const blob = await response.blob();
     return { blob };
   } catch {
-    if (Platform.OS !== 'web' && uri.startsWith('file://')) {
+    if (uri.startsWith('file://')) {
       const base64 = await readAsStringAsync(uri, { encoding: 'base64' });
       return { base64 };
     }

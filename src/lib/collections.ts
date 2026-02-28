@@ -148,6 +148,8 @@ export async function createCollection(
     setId?: string;
     setName?: string;
     setSymbol?: string;
+    customPokemonIds?: number[];
+    customPokemonNames?: string[];
   }
 ): Promise<Collection> {
   const collections = await loadCollections();
@@ -169,6 +171,8 @@ export async function createCollection(
     ...(options?.setId != null && { setId: options.setId }),
     ...(options?.setName != null && { setName: options.setName }),
     ...(options?.setSymbol != null && { setSymbol: options.setSymbol }),
+    ...(options?.customPokemonIds?.length && { customPokemonIds: options.customPokemonIds }),
+    ...(options?.customPokemonNames?.length && { customPokemonNames: options.customPokemonNames }),
   };
   collections.push(coll);
   await saveCollections(collections);
@@ -296,14 +300,16 @@ export async function getCollectionsInDisplayOrder(collections?: Collection[]): 
   );
   const singles = list.filter((c) => c.type === 'single_pokemon');
   const bySet = list.filter((c) => c.type === 'by_set');
-  const rest = [...masterTypes, ...singles, ...bySet];
+  const custom = list.filter((c) => c.type === 'custom');
+  const rest = [...masterTypes, ...singles, ...bySet, ...custom];
 
   if (order.length === 0) {
     const cta = list.find((c) => c.type === 'collect_them_all');
     const otherMaster = masterTypes.filter((c) => c.type !== 'collect_them_all').sort((a, b) => a.createdAt - b.createdAt);
     const sortedSingles = [...singles].sort((a, b) => a.createdAt - b.createdAt);
     const sortedBySet = [...bySet].sort((a, b) => a.createdAt - b.createdAt);
-    return [...(cta ? [cta] : []), ...otherMaster, ...sortedSingles, ...sortedBySet];
+    const sortedCustom = [...custom].sort((a, b) => a.createdAt - b.createdAt);
+    return [...(cta ? [cta] : []), ...otherMaster, ...sortedSingles, ...sortedBySet, ...sortedCustom];
   }
 
   const ordered: Collection[] = [];

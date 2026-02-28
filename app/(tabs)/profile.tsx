@@ -25,6 +25,7 @@ import {
 import { getCollectionProgress, type CollectionProgress } from '@/src/lib/collectionProgress';
 import { POKE_BALL_ICON_BW_SENTINEL } from '@/src/constants/collectionIcons';
 import { DEFAULT_TRAINER_SPRITE_URL, getTrainerSpriteUrl, isValidTrainerSpriteId } from '@/src/constants/trainerSprites';
+import { isDisplayNameAllowed } from '@/src/lib/displayNameFilter';
 import { getProfilePicturePref } from '@/src/lib/profilePicture';
 import { normalizeTcgdexImageUrl } from '@/src/lib/tcgdex';
 import { hapticLight } from '@/src/lib/haptics';
@@ -53,6 +54,7 @@ export default function TrainerIdScreen() {
   const [profilePictureUri, setProfilePictureUri] = useState<string | null>(null);
   const [usernameDraft, setUsernameDraft] = useState('');
   const [savingUsername, setSavingUsername] = useState(false);
+  const [editingName, setEditingName] = useState(false);
 
   const loadProfilePicture = useCallback(async () => {
     const pref = await getProfilePicturePref();
@@ -114,11 +116,24 @@ export default function TrainerIdScreen() {
       Alert.alert('Enter a username', 'Your username is shown on your Trainer ID.');
       return;
     }
+    const check = isDisplayNameAllowed(name, user?.email ?? null);
+    if (!check.allowed) {
+      Alert.alert('Name not allowed', check.error ?? 'Please choose a different name.');
+      return;
+    }
     setSavingUsername(true);
     const ok = await setDisplayName(name);
     setSavingUsername(false);
-    if (ok) setUsernameDraft('');
-  }, [usernameDraft, setDisplayName]);
+    if (ok) {
+      setUsernameDraft('');
+      setEditingName(false);
+    }
+  }, [usernameDraft, user?.email, setDisplayName]);
+
+  const startEditingName = useCallback(() => {
+    setUsernameDraft(user?.displayName?.trim() ?? '');
+    setEditingName(true);
+  }, [user?.displayName]);
 
   const masterCollections = collections.filter((c) => {
     return c.type === 'collect_them_all' || c.type === 'master_set' || c.type === 'master_dex';
@@ -179,31 +194,53 @@ export default function TrainerIdScreen() {
           />
         </View>
         <View style={styles.trainerInfo}>
-          {hasUsername ? (
-            <Text style={styles.trainerName} numberOfLines={1}>{user.displayName}</Text>
+          {hasUsername && !editingName ? (
+            <Pressable
+              style={({ pressed }) => [pressed && styles.rowPressed]}
+              onPress={() => {
+                hapticLight();
+                startEditingName();
+              }}
+            >
+              <Text style={styles.trainerName} numberOfLines={1}>{user.displayName}</Text>
+              <Text style={styles.tapToEditHint}>Tap to change name</Text>
+            </Pressable>
           ) : (
             <View style={styles.usernameForm}>
               <TextInput
                 style={styles.usernameInput}
-                placeholder="Choose a username"
+                placeholder={hasUsername ? 'Edit username' : 'Choose a username'}
                 placeholderTextColor="rgba(255,255,255,0.5)"
                 value={usernameDraft}
                 onChangeText={setUsernameDraft}
-                autoCapitalize="none"
+                autoCapitalize="words"
                 autoCorrect={false}
                 editable={!savingUsername}
               />
-              <Pressable
-                style={({ pressed }) => [styles.usernameSaveBtn, pressed && styles.rowPressed, savingUsername && styles.disabled]}
-                onPress={handleSaveUsername}
-                disabled={savingUsername}
-              >
-                {savingUsername ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <Text style={styles.usernameSaveText}>Save username</Text>
+              <View style={styles.usernameButtons}>
+                <Pressable
+                  style={({ pressed }) => [styles.usernameSaveBtn, pressed && styles.rowPressed, savingUsername && styles.disabled]}
+                  onPress={handleSaveUsername}
+                  disabled={savingUsername}
+                >
+                  {savingUsername ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={styles.usernameSaveText}>Save</Text>
+                  )}
+                </Pressable>
+                {editingName && (
+                  <Pressable
+                    style={({ pressed }) => [styles.usernameCancelBtn, pressed && styles.rowPressed]}
+                    onPress={() => {
+                      setEditingName(false);
+                      setUsernameDraft('');
+                    }}
+                  >
+                    <Text style={styles.usernameCancelText}>Cancel</Text>
+                  </Pressable>
                 )}
-              </Pressable>
+              </View>
             </View>
           )}
           {memberSince ? (
@@ -227,7 +264,7 @@ export default function TrainerIdScreen() {
             </Text>
           </View>
 
-          {/* Master / True Master progress */}
+          {/* Master / Grandmaster progress */}
           {masterCollections.length > 0 && (
             <View style={styles.section}>
               <Text style={styles.sectionLabel}>Master collections</Text>
@@ -381,7 +418,9 @@ const styles = StyleSheet.create({
   },
   trainerInfo: { flex: 1 },
   trainerName: { fontSize: 18, color: '#fff', fontWeight: '600' },
+  tapToEditHint: { fontSize: 12, color: 'rgba(255,255,255,0.5)', marginTop: 4 },
   usernameForm: { gap: 8 },
+  usernameButtons: { flexDirection: 'row', gap: 10, alignItems: 'center' },
   usernameInput: {
     backgroundColor: 'rgba(255,255,255,0.1)',
     borderRadius: 8,
@@ -398,6 +437,13 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(76, 175, 80, 0.7)',
   },
   usernameSaveText: { color: '#fff', fontSize: 14, fontWeight: '600' },
+  usernameCancelBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+  },
+  usernameCancelText: { color: 'rgba(255,255,255,0.9)', fontSize: 14 },
   disabled: { opacity: 0.6 },
   rowPressed: { opacity: 0.85 },
   memberSince: { fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 4 },

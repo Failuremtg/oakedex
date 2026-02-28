@@ -1,5 +1,5 @@
 /**
- * Admin: True Master Binder – pick default card per slot (same UX as binder),
+ * Admin: Grandmaster Binder – pick default card per slot (same UX as binder),
  * then Save pushes to all users and devices via Firestore config.
  */
 
@@ -22,7 +22,7 @@ import { SyncLoadingScreen } from '@/components/SyncLoadingScreen';
 import { charcoal } from '@/constants/Colors';
 import { getDefaultCardOverrides, getCustomCards, setDefaultCardOverrides } from '@/src/lib/adminBinderConfig';
 import { getSpeciesWithCache } from '@/src/lib/cardDataCache';
-import { getExpandedSpeciesList, getTcgSearchName } from '@/src/lib/masterSetExpansion';
+import { getExpandedSpeciesList, getTcgSearchName, VARIATION_GROUPS } from '@/src/lib/masterSetExpansion';
 import { getSpecies, getSpeciesNameForLang } from '@/src/lib/pokeapi';
 import { getCard, getCardsByName, getCardsFull, normalizeTcgdexImageUrl, toAppCardBrief, type TCGdexLang } from '@/src/lib/tcgdex';
 import { cardSlotKey, filterVariantsByEdition, getDisplayVariants, getSlotKeyForEntry, type AppCardBrief, type CardVariant, type CustomCard, type MasterListEntry } from '@/src/types';
@@ -58,7 +58,7 @@ export default function AdminMasterSetScreen() {
       ]);
       const species = getExpandedSpeciesList(base, {
         regionalForms: true,
-        variations: true,
+        variationGroups: VARIATION_GROUPS.map((g) => g.id),
         megas: true,
         gmax: true,
       });
@@ -244,7 +244,7 @@ export default function AdminMasterSetScreen() {
         <Pressable style={({ pressed }) => [styles.backBtn, pressed && styles.pressed]} onPress={() => router.back()}>
           <Text style={styles.backBtnText}>← Back</Text>
         </Pressable>
-        <Text style={styles.title}>True master binder</Text>
+        <Text style={styles.title}>Grandmaster binder</Text>
         <Text style={styles.subtitle}>
           Tap a slot to choose which card version shows when not collected. Save pushes to all users and devices.
         </Text>

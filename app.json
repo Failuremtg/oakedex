@@ -2,7 +2,7 @@
   "expo": {
     "name": "oakedex",
     "slug": "oakedex",
-    "version": "1.0.0",
+    "version": "0.5.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "oakedex",
@@ -15,7 +15,12 @@
     },
     "ios": {
       "supportsTablet": true,
-      "usesAppleSignIn": true
+      "bundleIdentifier": "com.oakedex.app",
+      "buildNumber": "2",
+      "usesAppleSignIn": true,
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -24,7 +29,8 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.failuremtg.oakedex"
+      "package": "com.oakedex.app",
+      "versionCode": 2
     },
     "web": {
       "bundler": "metro",

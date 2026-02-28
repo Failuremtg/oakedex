@@ -2,6 +2,12 @@
  * Admin binder config – default card per slot (what to show when not collected),
  * custom cards (extra slots like new Unown), and excluded card versions (hide for all users).
  * Stored in Firestore config.
+ *
+ * Variation slots: The *number* of slots for variations (Unown, Burmy, Rotom, etc.) comes
+ * from the code in masterSetExpansion.ts (one slot per form). The *specific card* shown
+ * for each empty slot is set in Admin → Grandmaster Binder: tap a slot, pick a card,
+ * and it’s saved as a default override (slotKey → cardId). That way the correct TCG
+ * printing is known per variation slot.
  */
 
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
@@ -59,7 +65,7 @@ export async function setDefaultCardOverride(slotKey: string, cardId: string | n
   await setDoc(ref, { defaultCardBySlotKey: next, updatedAt: serverTimestamp() });
 }
 
-/** Replace all default card overrides at once (e.g. from admin true master binder). Pushed to all users. */
+/** Replace all default card overrides at once (e.g. from admin grandmaster binder). Pushed to all users. */
 export async function setDefaultCardOverrides(overrides: DefaultCardOverrides): Promise<void> {
   const db = getDb();
   if (!db) throw new Error('Firebase not configured');

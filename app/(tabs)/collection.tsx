@@ -4,6 +4,7 @@ import { Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SyncLoadingScreen } from '@/components/SyncLoadingScreen';
 import { Text } from '@/components/Themed';
 import { loadCollectionsForDisplay, type Collection } from '@/src/lib/collections';
+import { getCollectionProgress, type CollectionProgress } from '@/src/lib/collectionProgress';
 import { getCollectionDisplayName, getCollectionSubtitle } from '@/src/lib/collectionDisplay';
 import { hapticLight } from '@/src/lib/haptics';
 import type { Slot } from '@/src/types';
@@ -14,6 +15,7 @@ export default function CollectionTabScreen() {
   const { user } = useAuth();
   const [collections, setCollections] = useState<Collection[]>([]);
   const [loading, setLoading] = useState(true);
+  const [progressById, setProgressById] = useState<Record<string, CollectionProgress>>({});
 
   useFocusEffect(
     useCallback(() => {
@@ -22,6 +24,17 @@ export default function CollectionTabScreen() {
         try {
           const list = await loadCollectionsForDisplay();
           if (!cancelled) setCollections(list);
+          const progress: Record<string, CollectionProgress> = {};
+          await Promise.all(
+            list.map(async (c) => {
+              try {
+                progress[c.id] = await getCollectionProgress(c);
+              } catch {
+                progress[c.id] = { filled: c.slots.filter((s) => s.card).length, total: null };
+              }
+            })
+          );
+          if (!cancelled) setProgressById(progress);
         } catch {
           if (!cancelled) setCollections([]);
         } finally {
@@ -57,7 +70,11 @@ export default function CollectionTabScreen() {
           resizeMode="contain"
         />
 
-        {masterCollections.map((coll) => (
+        {masterCollections.map((coll) => {
+          const filled = coll.slots.filter((s: Slot) => s.card).length;
+          const total = progressById[coll.id]?.total ?? null;
+          const meta = total != null ? `${filled} / ${total}` : `${filled} filled`;
+          return (
           <Pressable
             key={coll.id}
             style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
@@ -68,9 +85,10 @@ export default function CollectionTabScreen() {
           >
             <Text style={styles.cardTitle}>{getCollectionDisplayName(coll)}</Text>
             <Text style={styles.cardSubtitle}>{getCollectionSubtitle(coll)}</Text>
-            <Text style={styles.cardMeta}>{coll.slots.filter((s: Slot) => s.card).length} filled</Text>
+            <Text style={styles.cardMeta}>{meta}</Text>
           </Pressable>
-        ))}
+          );
+        })}
 
         {singlePokemonBinders.map((coll) => (
           <Pressable

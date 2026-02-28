@@ -59,39 +59,43 @@ function main() {
   }
 
   const profile = process.env.EAS_PROFILE || 'production';
-  const keysToPush = [
-    ...FIREBASE_KEYS,
-    ...OPTIONAL_KEYS.filter((k) => env[k] && String(env[k]).trim()),
-  ];
-  console.log(`Pushing env vars to EAS environment: ${profile}`);
-  console.log('(Set EAS_PROFILE=preview or production-apk to use another profile.)\n');
+  // Push to both preview and production so APK (preview) and store builds get env vars (including Google Client ID).
+  const envsToPush = ['preview', 'production'];
 
-  for (const key of keysToPush) {
-    const value = env[key];
-    const args = [
-      'eas',
-      'env:create',
-      '--environment', profile,
-      '--name', key,
-      '--value', value,
-      '--type', 'string',
-      '--visibility', 'plaintext',
-      '--non-interactive',
+  for (const envName of envsToPush) {
+    const keysToPush = [
+      ...FIREBASE_KEYS,
+      ...OPTIONAL_KEYS.filter((k) => env[k] && String(env[k]).trim()),
     ];
-    console.log(`  Creating ${key}...`);
-    const r = spawnSync('npx', args, {
-      cwd: ROOT,
-      stdio: 'inherit',
-      shell: true,
-    });
-    if (r.status !== 0) {
-      console.error(`Failed for ${key}. If it already exists, update it in the EAS dashboard or delete it and re-run.`);
-      process.exit(1);
+    console.log(`Pushing ${keysToPush.length} env vars to EAS environment: ${envName}`);
+    for (const key of keysToPush) {
+      const value = env[key];
+      const args = [
+        'eas',
+        'env:create',
+        '--environment', envName,
+        '--name', key,
+        '--value', value,
+        '--type', 'string',
+        '--visibility', 'plaintext',
+        '--non-interactive',
+        '--force',
+      ];
+      console.log(`  Creating/updating ${key}...`);
+      const r = spawnSync('npx', args, {
+        cwd: ROOT,
+        stdio: 'inherit',
+        shell: true,
+      });
+      if (r.status !== 0) {
+        console.error(`Failed for ${key}.`);
+        process.exit(1);
+      }
     }
   }
 
-  console.log('\nDone. Run a new EAS build so the app gets these variables:');
-  console.log('  npx eas build --platform android --profile', profile);
+  console.log('\nDone. Env vars are set for both preview and production.');
+  console.log('Run a new EAS build: npx eas build --platform android --profile preview');
 }
 
 main();

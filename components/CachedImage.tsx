@@ -3,6 +3,7 @@ import { Image, Pressable, StyleSheet, Text, View, type ImageStyle } from 'react
 import { getOrDownloadImageUri } from '@/src/lib/imageCache';
 import { getAnyOverrideUri } from '@/src/lib/cardImageOverrides';
 import { getCloudAdminImageUrl } from '@/src/lib/cardImageCloud';
+import { getFallbackCardImageUrl } from '@/src/lib/pokemonTcgApi';
 
 type CachedImageProps = {
   /** Remote image URI (e.g. TCGdex). Cached locally after first load. */
@@ -40,6 +41,8 @@ export function CachedImage({
   const [cachedUri, setCachedUri] = useState<string | null>(null);
   const [tryLowQuality, setTryLowQuality] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
+  const [fallbackUri, setFallbackUri] = useState<string | null>(null);
+  const [triedFallback, setTriedFallback] = useState(false);
 
   const effectiveOverride = overrideUri ?? localOverrideUri ?? cloudAdminUri;
 
@@ -61,20 +64,44 @@ export function CachedImage({
     };
   }, [cardId]);
 
+  // When we have no primary URI but have cardId, try secondary API (e.g. set list cards from TCGdex with no image).
+  // Run fallback URL through image cache so it's downloaded and cached for next time.
+  useEffect(() => {
+    if (effectiveOverride || (remoteUri != null && remoteUri !== '')) return;
+    if (!cardId || triedFallback) return;
+    setTriedFallback(true);
+    let cancelled = false;
+    getFallbackCardImageUrl(cardId)
+      .then((url) => {
+        if (cancelled || !url) return;
+        return getOrDownloadImageUri(url).then((cached) => {
+          if (!cancelled && cached) setFallbackUri(cached);
+          else if (!cancelled) setFallbackUri(url);
+        });
+      });
+    return () => { cancelled = true; };
+  }, [effectiveOverride, remoteUri, cardId, triedFallback]);
+
   useEffect(() => {
     if (effectiveOverride) {
       setCachedUri(null);
       setTryLowQuality(false);
       setLoadFailed(false);
+      setFallbackUri(null);
+      setTriedFallback(false);
       return;
     }
     if (remoteUri == null || remoteUri === '') {
       setCachedUri(null);
       setTryLowQuality(false);
       setLoadFailed(false);
+      setFallbackUri(null);
+      setTriedFallback(false);
       return;
     }
     setLoadFailed(false);
+    setFallbackUri(null);
+    setTriedFallback(false);
     if (remoteUri.startsWith('file://')) {
       setCachedUri(remoteUri);
       setTryLowQuality(false);
@@ -92,7 +119,8 @@ export function CachedImage({
     };
   }, [remoteUri, effectiveOverride]);
 
-  const uri = effectiveOverride ?? (remoteUri == null || remoteUri === '' ? null : (cachedUri ?? remoteUri));
+  const primaryUri = effectiveOverride ?? (remoteUri == null || remoteUri === '' ? null : (cachedUri ?? remoteUri));
+  const uri = primaryUri ?? fallbackUri;
   const displayUri = uri != null && tryLowQuality ? toLowQualityUrl(uri) : uri;
 
   if (displayUri == null || loadFailed) {
@@ -112,18 +140,34 @@ export function CachedImage({
     );
   }
 
-  return (
-    <Image
-      source={{ uri: displayUri }}
-      style={style}
-      resizeMode={resizeMode}
-      onError={() => {
-        if (displayUri.endsWith('/high.png')) {
-          setTryLowQuality(true);
+  const handleError = () => {
+    if (displayUri?.endsWith('/high.png')) {
+      setTryLowQuality(true);
+      return;
+    }
+    if (cardId && !triedFallback) {
+      setTriedFallback(true);
+      getFallbackCardImageUrl(cardId).then((url) => {
+        if (url) {
+          getOrDownloadImageUri(url).then((cached) => {
+            if (cached) setFallbackUri(cached);
+            else setFallbackUri(url);
+          });
         } else {
           setLoadFailed(true);
         }
-      }}
+      });
+    } else {
+      setLoadFailed(true);
+    }
+  };
+
+  return (
+    <Image
+      source={{ uri: displayUri ?? undefined }}
+      style={style}
+      resizeMode={resizeMode}
+      onError={handleError}
     />
   );
 }

@@ -11,6 +11,8 @@ import { charcoal, primary } from '@/constants/Colors';
 import { hapticSelection } from '@/src/lib/haptics';
 
 const ICON_SIZE = 24;
+/** Fixed icon box so icons align consistently on all devices (avoids "off" look on iOS). */
+const ICON_BOX = 28;
 const POKEBALL_SIZE = 22;
 const POKEBALL_BUTTON = 6;
 
@@ -98,7 +100,9 @@ export function CustomTabBar({
               accessibilityState={isFocused ? { selected: true } : {}}
               accessibilityLabel={label}
             >
-              <FontAwesome name={iconName} size={ICON_SIZE} color={color} />
+              <View style={styles.iconBox}>
+                <FontAwesome name={iconName} size={ICON_SIZE} color={color} />
+              </View>
               <Text style={[styles.label, { color }]} numberOfLines={1}>
                 {label}
               </Text>
@@ -165,6 +169,12 @@ const styles = StyleSheet.create({
   },
   tabRow: {
     flexDirection: 'row',
+  },
+  iconBox: {
+    width: ICON_BOX,
+    height: ICON_BOX,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   tab: {
     flex: 1,

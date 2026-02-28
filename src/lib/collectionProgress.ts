@@ -6,6 +6,7 @@ import type { Collection } from '@/src/types';
 import { filterVariantsByEdition, getDisplayVariants } from '@/src/types';
 import { getCustomCards } from '@/src/lib/adminBinderConfig';
 import { getPocketSetIds, getSetWithCache, getSpeciesWithCache } from '@/src/lib/cardDataCache';
+import { addMasterBallIfEligible } from '@/src/lib/masterBallSets';
 import { getExpandedSpeciesList, getTcgSearchName } from '@/src/lib/masterSetExpansion';
 import { getSpecies, getSpeciesNameForLang } from '@/src/lib/pokeapi';
 import { getCard, getCardsByName, getCardsFull, type TCGdexLang } from '@/src/lib/tcgdex';
@@ -62,7 +63,8 @@ async function getSinglePokemonTotal(c: Collection): Promise<number | null> {
           const fullCards = await getCardsFull(lang, batch);
           for (const full of fullCards) {
             if (!full?.variants || pocketSet.has(full.set?.id ?? setIdFromCardId(full.id))) continue;
-            const variants = filterVariantsByEdition(getDisplayVariants(full), editionFilter);
+            const withMasterBall = addMasterBallIfEligible(getDisplayVariants(full), full.set?.id ?? setIdFromCardId(full.id), full.localId, full);
+            const variants = filterVariantsByEdition(withMasterBall, editionFilter);
             total += variants.length;
           }
         }
@@ -73,7 +75,8 @@ async function getSinglePokemonTotal(c: Collection): Promise<number | null> {
           const fullCards = await getCardsFull(lang, batch);
           for (const full of fullCards) {
             if (!full?.variants || pocketSet.has(full.set?.id ?? setIdFromCardId(full.id))) continue;
-            const variants = filterVariantsByEdition(getDisplayVariants(full), editionFilter);
+            const withMasterBall = addMasterBallIfEligible(getDisplayVariants(full), full.set?.id ?? setIdFromCardId(full.id), full.localId, full);
+            const variants = filterVariantsByEdition(withMasterBall, editionFilter);
             total += variants.length;
           }
         }
@@ -128,6 +131,10 @@ export async function getCollectionProgress(c: Collection): Promise<CollectionPr
     } catch {
       return { filled, total: null };
     }
+  }
+
+  if (c.type === 'custom') {
+    return { filled, total: c.slots.length };
   }
 
   return { filled, total: null };

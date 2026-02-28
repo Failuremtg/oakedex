@@ -15,6 +15,7 @@ import { setSlot } from '@/src/lib/collections';
 import { getPocketSetIds } from '@/src/lib/cardDataCache';
 import { getTcgSearchName } from '@/src/lib/masterSetExpansion';
 import { getCard, getCardsByName, type TCGdexLang } from '@/src/lib/tcgdex';
+import { addMasterBallIfEligible, cardHasMasterBall } from '@/src/lib/masterBallSets';
 import { getVariantLabel, getVariantsFromCard, type CardVariant } from '@/src/types';
 import type { PokemonSummary } from '@/src/types';
 
@@ -100,13 +101,17 @@ export default function CardPickerScreen() {
     async (variant: CardVariant) => {
       if (!collectionId || !slotKey || !selectedCardId) return;
       const valid = getVariantsFromCard({ variants });
-      if (!valid.includes(variant)) return;
+      const card = cards.find((c) => c.id === selectedCardId);
+      const allowed =
+        valid.includes(variant) ||
+        (variant === 'masterBall' && cardHasMasterBall(setIdFromCardId(selectedCardId), card?.localId, { name: card?.name }));
+      if (!allowed) return;
       setSaving(true);
       await setSlot(collectionId, slotKey, { cardId: selectedCardId, variant });
       setSaving(false);
       router.back();
     },
-    [collectionId, slotKey, selectedCardId, variants, router]
+    [collectionId, slotKey, selectedCardId, variants, cards, router]
   );
 
   const clearSlot = useCallback(async () => {
@@ -135,10 +140,13 @@ export default function CardPickerScreen() {
 
   if (step === 'variant' && selectedCardId) {
     const card = cards.find((c) => c.id === selectedCardId);
-    const availableVariants = (Object.entries(variants) as [string, boolean][]).filter(
-      ([_, available]) => available === true
+    const fromApi = getVariantsFromCard({ variants });
+    const validVariants = addMasterBallIfEligible(
+      fromApi,
+      setIdFromCardId(selectedCardId),
+      card?.localId,
+      { name: card?.name }
     );
-    const validVariants = getVariantsFromCard({ variants });
     return (
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
         {card?.image && (
@@ -147,20 +155,16 @@ export default function CardPickerScreen() {
         <Text style={styles.cardName}>{card?.name}</Text>
         <Text style={styles.setInfo}>#{card?.localId}</Text>
         <Text style={styles.variantTitle}>Which version do you have?</Text>
-        {availableVariants.map(([v]) => {
-          const variant = v as CardVariant;
-          if (!validVariants.includes(variant)) return null;
-          return (
-            <Pressable
-              key={variant}
-              style={({ pressed }) => [styles.variantButton, pressed && styles.variantPressed]}
-              onPress={() => onSelectVariant(variant)}
-              disabled={saving}
-            >
-              <Text style={styles.variantButtonText}>{getVariantLabel(variant)}</Text>
-            </Pressable>
-          );
-        })}
+        {validVariants.map((variant) => (
+          <Pressable
+            key={variant}
+            style={({ pressed }) => [styles.variantButton, pressed && styles.variantPressed]}
+            onPress={() => onSelectVariant(variant)}
+            disabled={saving}
+          >
+            <Text style={styles.variantButtonText}>{getVariantLabel(variant)}</Text>
+          </Pressable>
+        ))}
         <Pressable
           style={({ pressed }) => [styles.clearButton, pressed && styles.variantPressed]}
           onPress={clearSlot}
