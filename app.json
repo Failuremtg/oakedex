@@ -30,7 +30,7 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.failuremtg.oakedex",
-      "versionCode": 3
+      "versionCode": 4
     },
     "web": {
       "bundler": "metro",
