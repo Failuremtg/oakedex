@@ -1,5 +1,3 @@
-'use client';
-
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import type { User } from 'firebase/auth';
 import {
@@ -166,41 +164,45 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const cred = await signInWithPopup(auth, new GoogleAuthProvider());
         return cred;
       }
-      // Native: use browser OAuth then Firebase credential. Always use Expo proxy
-      // so redirect URI is https://auth.expo.io/... (allowed by Google Web client).
-      // Works in Expo Go, dev builds, and APK without custom scheme in Google Cloud.
+      // Native: use Expo auth proxy so redirect URI is always
+      // https://auth.expo.io/@failuremtg/oakedex — add this in Google Cloud Console
+      // → APIs & Services → Credentials → your Web OAuth client → Authorized redirect URIs.
       if (!AuthSession || !GOOGLE_WEB_CLIENT_ID) {
-        setError('Google sign-in is not set up. Set EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID in .env and add the redirect URI in Google Cloud Console.');
+        setError('Google sign-in is not set up. Set EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID in .env.');
         return null;
       }
-      const useProxy = true;
-      const redirectUri = AuthSession.makeRedirectUri({ useProxy });
+      // Hardcode the Expo proxy URI — makeRedirectUri({ useProxy }) was removed in expo-auth-session v7
+      const redirectUri = 'https://auth.expo.io/@failuremtg/oakedex';
+
+      // Nonce is required by Google for id_token implicit flow (same pattern as Apple sign-in)
+      const rawNonce = Math.random().toString(36).slice(2) + Date.now().toString(36);
+      const hashedNonce = await Crypto.digestStringAsync(
+        Crypto.CryptoDigestAlgorithm.SHA256,
+        rawNonce
+      );
+
       const request = await AuthSession.loadAsync(
         {
           clientId: GOOGLE_WEB_CLIENT_ID,
           redirectUri,
           scopes: ['openid', 'email', 'profile'],
           responseType: 'id_token' as const,
+          extraParams: { nonce: hashedNonce },
         },
         'https://accounts.google.com'
       );
-      const result = await request.promptAsync({ useProxy });
+      const result = await request.promptAsync({ useProxy: true });
       if (result.type !== 'success') {
         if (result.type === 'dismiss' || result.type === 'cancel') {
           setError('Sign-in was cancelled.');
         } else {
-          const msg = getFriendlyAuthErrorMessage(result);
-          setError(
-            msg + (redirectUri ? ` Add this redirect URI in Google Cloud Console: ${redirectUri}` : '')
-          );
+          setError(getFriendlyAuthErrorMessage(result));
         }
         return null;
       }
       const idToken = (result.params as { id_token?: string }).id_token;
       if (!idToken) {
-        setError(
-          'Google did not return a token. In Google Cloud Console, add this redirect URI: ' + redirectUri
-        );
+        setError('Google did not return a token. Check that ' + redirectUri + ' is in your Google Cloud Console authorized redirect URIs.');
         return null;
       }
       const credential = GoogleAuthProvider.credential(idToken);
