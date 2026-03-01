@@ -3,12 +3,12 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
-  Image,
   Pressable,
   ScrollView,
   StyleSheet,
 } from 'react-native';
 
+import { CachedImage } from '@/components/CachedImage';
 import { Text, View } from '@/components/Themed';
 import { SyncLoadingScreen } from '@/components/SyncLoadingScreen';
 import { setSlot } from '@/src/lib/collections';
@@ -149,9 +149,12 @@ export default function CardPickerScreen() {
     );
     return (
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-        {card?.image && (
-          <Image source={{ uri: card.image }} style={styles.cardImage} resizeMode="contain" />
-        )}
+        <CachedImage
+          remoteUri={card?.image}
+          cardId={card?.id}
+          style={styles.cardImage}
+          resizeMode="contain"
+        />
         <Text style={styles.cardName}>{card?.name}</Text>
         <Text style={styles.setInfo}>#{card?.localId}</Text>
         <Text style={styles.variantTitle}>Which version do you have?</Text>
@@ -193,11 +196,12 @@ export default function CardPickerScreen() {
           style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
           onPress={() => onSelectCard(item.id)}
         >
-          {item.image ? (
-            <Image source={{ uri: item.image }} style={styles.thumb} />
-          ) : (
-            <View style={styles.thumbPlaceholder} />
-          )}
+          <CachedImage
+            remoteUri={item.image}
+            cardId={item.id}
+            style={styles.thumb}
+            resizeMode="contain"
+          />
           <View style={styles.rowText}>
             <Text style={styles.name}>{item.name}</Text>
             <Text style={styles.setNum}>#{item.localId}</Text>
