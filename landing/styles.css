@@ -996,6 +996,103 @@ body {
   transform: translateY(-1px);
 }
 
+/* Feedback page */
+.feedback-page {
+  padding: 48px 0 72px;
+}
+
+.feedback-page .policy-title {
+  margin-bottom: 8px;
+}
+
+.feedback-page .feedback-lead {
+  margin: 0 0 32px;
+  font-size: 1rem;
+  color: var(--text-muted);
+  max-width: 520px;
+}
+
+.feedback-form {
+  max-width: 520px;
+}
+
+.feedback-form .form-group {
+  margin-bottom: 20px;
+}
+
+.feedback-form .form-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.feedback-form .form-input,
+.feedback-form .form-select,
+.feedback-form .form-textarea {
+  width: 100%;
+  padding: 14px 18px;
+  font-family: var(--font);
+  font-size: 16px;
+  color: var(--text);
+  background: var(--bg-elevated);
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.feedback-form .form-textarea {
+  min-height: 160px;
+  resize: vertical;
+}
+
+.feedback-form .form-select {
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%23a0a0a0' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10l-5 5z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 16px center;
+  padding-right: 40px;
+}
+
+.feedback-form .form-input::placeholder,
+.feedback-form .form-textarea::placeholder {
+  color: var(--text-muted);
+}
+
+.feedback-form .form-input:hover,
+.feedback-form .form-select:hover,
+.feedback-form .form-textarea:hover {
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.feedback-form .form-input:focus,
+.feedback-form .form-select:focus,
+.feedback-form .form-textarea:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(106, 68, 155, 0.25);
+}
+
+.feedback-form .form-textarea:focus {
+  outline: none;
+}
+
+.feedback-form .form-hint {
+  margin: 6px 0 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.feedback-form .submit-wrap {
+  margin-top: 28px;
+}
+
+.feedback-form .signup-message {
+  margin-top: 16px;
+}
+
 /* Footer */
 .site-footer {
   border-top: 1px solid var(--border);

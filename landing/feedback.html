@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Submit feedback or report a bug for Oakedex – we read every message." />
+  <title>Feedback &amp; bug reports – Oakedex</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-inner">
+      <a href="index.html" class="logo-link" aria-label="Oakedex home">
+        <img src="assets/oakedex-logo.svg" alt="Oakedex" class="logo-img" />
+      </a>
+      <nav class="nav">
+        <a href="index.html">Home</a>
+        <a href="feedback.html" class="nav-cta">Feedback</a>
+        <a href="policy.html">Privacy</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="policy-page feedback-page">
+    <div class="container">
+      <h1 class="policy-title">Feedback &amp; bug reports</h1>
+      <p class="feedback-lead">Found a bug or have an idea? We read every message. Submissions go straight to the team.</p>
+
+      <form id="feedback-form" class="feedback-form" action="#" method="POST" novalidate>
+        <div class="form-group">
+          <label for="feedback-type">Type</label>
+          <select id="feedback-type" name="type" class="form-select" required>
+            <option value="feedback">General feedback</option>
+            <option value="bug">Bug report</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="feedback-email">Your email <span class="form-hint">(optional – if you’d like a reply)</span></label>
+          <input
+            type="email"
+            id="feedback-email"
+            name="email"
+            class="form-input"
+            placeholder="you@example.com"
+            autocomplete="email"
+          />
+        </div>
+        <div class="form-group">
+          <label for="feedback-message">Message <span class="form-hint">(required)</span></label>
+          <textarea
+            id="feedback-message"
+            name="message"
+            class="form-textarea"
+            placeholder="Describe the bug or share your feedback…"
+            required
+            maxlength="5000"
+          ></textarea>
+          <p class="form-hint" id="feedback-char-count">0 / 5000</p>
+        </div>
+        <div class="submit-wrap">
+          <button type="submit" class="btn btn-primary" id="feedback-submit">Send</button>
+          <p id="feedback-message-el" class="signup-message" aria-live="polite" hidden></p>
+        </div>
+      </form>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-inner">
+      <p class="footer-brand">Oakedex</p>
+      <p class="footer-legal">Pokémon and Pokémon TCG are © of The Pokémon Company. This app is not affiliated with or endorsed by them.</p>
+    </div>
+  </footer>
+  <script src="feedback.js"></script>
+</body>
+</html>

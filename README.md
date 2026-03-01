@@ -13,7 +13,8 @@ Data is stored locally (AsyncStorage) or in Firestore when you’re signed in (p
 ## Tech
 
 - **Expo** (React Native) with **expo-router**
-- **TCGdex API** – cards, sets, multilingual (English used in MVP)
+- **TCGdex API** – primary source for cards, sets, multilingual
+- **Pokémon TCG API** (pokemontcg.io) – fallback for missing card images; used when TCGdex has no image or the image fails to load
 - **PokeAPI** – list of Pokémon species for Collect Them All
 - **AsyncStorage** – local persistence when not signed in
 - **Firebase** (optional) – Auth (email/password); Firestore for cloud sync of collections per user
@@ -42,11 +43,20 @@ When signed in, collections and binder order are stored under `users/{uid}/colle
 
 For **building for the Android store** and using a **production Firebase project** (non–test DB), see [BUILD_ANDROID.md](./BUILD_ANDROID.md).
 
+### Optional: Pokémon TCG API key (better rate limits for fallback images)
+
+When TCGdex is missing an image or it fails to load, the app tries the [Pokémon TCG API](https://pokemontcg.io/) (pokemontcg.io). Without a key you get 1,000 requests/day; with a free key from [dev.pokemontcg.io](https://dev.pokemontcg.io/) you get 20,000/day. Add to `.env`:
+
+```bash
+EXPO_PUBLIC_POKEMON_TCG_API_KEY=your_key_here
+```
+
 ## Project layout
 
 - `app/` – Screens: Home `(tabs)/index`, Binder `binder/[id]`, Card picker `card-picker`, New Single Pokémon `new-single`
 - `src/types.ts` – Data model (Collection, Slot, BinderType, etc.)
-- `src/lib/tcgdex.ts` – TCGdex API client
+- `src/lib/tcgdex.ts` – TCGdex API client (cards, sets)
+- `src/lib/pokemonTcgApi.ts` – Pokémon TCG API client (fallback images)
 - `src/lib/collections.ts` – Load/save collections and slots
 - `src/lib/pokeapi.ts` – Pokémon species list for Collect Them All
 

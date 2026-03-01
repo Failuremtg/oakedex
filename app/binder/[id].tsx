@@ -42,6 +42,8 @@ import { getSpecies, getSpeciesNameForLang } from '@/src/lib/pokeapi';
 import { getCard, getCardsByName, getCardsByIds, getCardsFull, normalizeTcgdexImageUrl, cardImageUrlFromId, LANGUAGE_OPTIONS, toAppCardBrief, type TCGdexLang } from '@/src/lib/tcgdex';
 import { CARD_VARIANTS, cardSlotKey, filterVariantsByEdition, filterVariantsBySetCardCount, filterVariantsBySetReleaseDate, getDisplayVariants, getSlotKey, getSlotKeyForEntry, getVariantLabel, getVariantsFromCard, type AppCardBrief, type CardVariant, type CustomCard, type MasterListEntry, type PokemonSummary, type Slot, type SlotCard } from '@/src/types';
 import { getDefaultCardOverrides, getCustomCards, getExcludedCardVersions, addExcludedCardVersion, cardVersionKey } from '@/src/lib/adminBinderConfig';
+import { getExtraPrintingsForName, getExtraSetNamesById } from '@/src/lib/extraPrintings';
+import { listManualCards, manualCardsToCustomCards } from '@/src/lib/manualCards';
 import { useAuth } from '@/src/auth/AuthContext';
 import { useSubscription } from '@/src/subscription/SubscriptionContext';
 import { useIsAdmin } from '@/src/lib/adminConfig';
@@ -87,6 +89,13 @@ function chunk<T>(arr: T[], size: number): T[][] {
 function setIdFromCardId(cardId: string): string {
   const i = cardId.lastIndexOf('-');
   return i >= 0 ? cardId.slice(0, i) : cardId;
+}
+
+/** True if the set is promo/stamped so we sort it after main releases. */
+function isPromoOrStampedSet(setId: string, setName?: string): boolean {
+  if (/^tot-|^hc-/.test(setId ?? '')) return true;
+  const n = (setName ?? setId).toLowerCase();
+  return /promo|black star|stamped/.test(n);
 }
 
 /** Collector number from card id (part after last dash) or from card.localId. */
@@ -201,6 +210,31 @@ export default function BinderScreen() {
     []
   );
   const closeCardOverlay = useCallback(() => setCardOverlay(null), []);
+
+  const handleDeleteCardEmptyCustom = useCallback(
+    (slotKey: string) => {
+      if (!id) return;
+      Alert.alert(
+        'Remove card',
+        'Remove this card from your custom binder?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Remove',
+            style: 'destructive',
+            onPress: async () => {
+              setIsSaving(true);
+              const updated = await setSlot(id, slotKey, null);
+              setIsSaving(false);
+              if (updated) setCollection(updated);
+              closeCardOverlay();
+            },
+          },
+        ]
+      );
+    },
+    [id, closeCardOverlay]
+  );
 
   const handleUploadCardImage = useCallback(async (cardId: string) => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -354,6 +388,7 @@ export default function BinderScreen() {
       setCollection(coll);
       setEditingName(coll?.name ?? '');
       let releaseDateBySetId: Record<string, string> = {};
+      let setNamesMap: Record<string, string> = {};
       try {
         const sets = await getSetsWithCache();
         const map: Record<string, string> = {};
@@ -361,6 +396,8 @@ export default function BinderScreen() {
           map[s.id] = s.name;
           if (s.releaseDate) releaseDateBySetId[s.id] = s.releaseDate;
         }
+        Object.assign(map, getExtraSetNamesById());
+        setNamesMap = map;
         setSetNamesById(map);
       } catch {
         setSetNamesById({});
@@ -391,17 +428,20 @@ export default function BinderScreen() {
 
       if (coll?.type === 'collect_them_all' || coll?.type === 'master_set' || coll?.type === 'master_dex') {
       try {
-        const [base, customCards, overrides] = await Promise.all([
+        const [base, customCards, overrides, manualCards] = await Promise.all([
           getSpeciesWithCache(),
           getCustomCards(),
           getDefaultCardOverrides(),
+          listManualCards(),
         ]);
         setDefaultCardOverrides(overrides);
         const species: MasterListEntry[] =
           coll.type === 'master_set' || coll.type === 'master_dex'
             ? getExpandedSpeciesList(base, coll.masterSetOptions)
             : base;
-        const customEntries: MasterListEntry[] = customCards.map((card) => ({
+        const customFromManual = manualCardsToCustomCards(manualCards);
+        const allCustomCards = [...customCards, ...customFromManual];
+        const customEntries: MasterListEntry[] = allCustomCards.map((card) => ({
           type: 'custom',
           slotKey: card.slotKey,
           name: card.name,
@@ -437,8 +477,9 @@ export default function BinderScreen() {
           const fullCards = await getCardsFull(LANG, ids);
           for (const full of fullCards) {
             if (!full?.variants) continue;
-            const fromDisplay = getDisplayVariants(full);
-            const afterSetCount = filterVariantsBySetCardCount(fromDisplay, setData.cardCount);
+            // Complete set = all variants the card has (normal, reverse, holo, 1st ed, etc.); set-level filters trim to what the set contains
+            const fromCard = getVariantsFromCard(full);
+            const afterSetCount = filterVariantsBySetCardCount(fromCard, setData.cardCount);
             const afterRelease = filterVariantsBySetReleaseDate(afterSetCount, setData.releaseDate);
             const displayVariants = addMasterBallIfEligible(afterRelease, setData.id, full.localId, full);
             const variants = filterVariantsByEdition(displayVariants, coll.editionFilter);
@@ -549,17 +590,25 @@ export default function BinderScreen() {
             byLang[lang] = [];
           }
         }
+        // Add extra printings from JSON (Trick or Trade, Holiday Calendar, etc.)
+        const extrasSingle = getExtraPrintingsForName(coll.singlePokemonName ?? '', { exact: false });
+        for (const lang of Object.keys(byLang)) {
+          byLang[lang].push(...extrasSingle);
+        }
         // Exclude cards from Pokémon TCG Pocket sets
         for (const lang of Object.keys(byLang)) {
           byLang[lang] = byLang[lang].filter(
             (p) => !pocketSet.has(p.set?.id ?? setIdFromCardId(p.id))
           );
         }
-        // Sort each language's printings by set release date (oldest first), then by card id
+        // Sort: main releases first (by release date, base set first), then promos/stamped last
         for (const lang of Object.keys(byLang)) {
           byLang[lang].sort((a, b) => {
             const setIdA = a.set?.id ?? setIdFromCardId(a.id);
             const setIdB = b.set?.id ?? setIdFromCardId(b.id);
+            const promoA = isPromoOrStampedSet(setIdA, setNamesMap[setIdA]);
+            const promoB = isPromoOrStampedSet(setIdB, setNamesMap[setIdB]);
+            if (promoA !== promoB) return promoA ? 1 : -1;
             const dateA = releaseDateBySetId[setIdA] ?? '9999-12-31';
             const dateB = releaseDateBySetId[setIdB] ?? '9999-12-31';
             if (dateA !== dateB) return dateA.localeCompare(dateB);
@@ -673,11 +722,28 @@ export default function BinderScreen() {
             }
           }
         }
+        // Add extra printings from JSON (Trick or Trade, Holiday Calendar) for each Pokémon
+        for (let i = 0; i < (coll.customPokemonNames?.length ?? 0); i++) {
+          const pokemonName = coll.customPokemonNames![i] ?? '';
+          const slug = customMultiPokemonSlug(pokemonName);
+          const extrasMulti = getExtraPrintingsForName(pokemonName, { exact: false });
+          for (const extra of extrasMulti) {
+            entries.push({
+              slotKey: customMultiSlotKey(slug, 'en', extra.id, extra.variant),
+              pokemonName,
+              lang: 'en',
+              card: extra,
+            });
+          }
+        }
         entries.sort((a, b) => {
           if (a.pokemonName !== b.pokemonName) return a.pokemonName.localeCompare(b.pokemonName);
           if (a.lang !== b.lang) return a.lang.localeCompare(b.lang);
           const setIdA = a.card.set?.id ?? setIdFromCardId(a.card.id);
           const setIdB = b.card.set?.id ?? setIdFromCardId(b.card.id);
+          const promoA = isPromoOrStampedSet(setIdA, setNamesMap[setIdA]);
+          const promoB = isPromoOrStampedSet(setIdB, setNamesMap[setIdB]);
+          if (promoA !== promoB) return promoA ? 1 : -1;
           const dateA = releaseDateBySetId[setIdA] ?? '9999-12-31';
           const dateB = releaseDateBySetId[setIdB] ?? '9999-12-31';
           if (dateA !== dateB) return dateA.localeCompare(dateB);
@@ -698,7 +764,8 @@ export default function BinderScreen() {
       setGlobalSlots(null);
     }
     } catch {
-      setCollection(null);
+      // Don't clear collection: if we already set it (binder was found), keep it so the user sees the binder and can tap Try again.
+      // Only when loadCollections fails or id is missing will collection stay null (Binder not found).
       setCardsLoadError("Couldn't load this binder. Tap to retry.");
     } finally {
       setLoading(false);
@@ -850,7 +917,16 @@ export default function BinderScreen() {
       if (!id || !collection) return;
       if (type === 'custom' && (collection.customPokemonNames?.length ?? 0) > 0) {
         if (!isEditMode) return;
-        router.push(`/card-search-add?collectionId=${id}&slotKey=${encodeURIComponent(slotKey)}`);
+        const existing = (collection.slots ?? []).find((s) => s.key === slotKey);
+        const isCollected = !!existing?.card;
+        setIsSaving(true);
+        const updated = await setSlot(
+          id,
+          slotKey,
+          isCollected ? null : { cardId: cardId ?? slotKey, variant: variant ?? 'normal' }
+        );
+        setIsSaving(false);
+        if (updated) setCollection(updated);
         return;
       }
       if (type === 'single_pokemon' || type === 'by_set') {
@@ -973,8 +1049,9 @@ export default function BinderScreen() {
         set: { id: '', name: meta.setName },
         variant: meta.variant ?? 'normal',
       }));
+      const extras = apiCard ? getExtraPrintingsForName(apiCard.name, { exact: false }) : [];
       setSetVersionPickerSlotKey(slotKey);
-      setSetVersionPickerCards([...apiEntries, ...userCardsList]);
+      setSetVersionPickerCards([...apiEntries, ...userCardsList, ...extras]);
       setSetVersionPickerVisible(true);
     },
     [collection, setCards]
@@ -1000,7 +1077,7 @@ export default function BinderScreen() {
             const slotMap = new Map<string, SlotCard | null>((collection.slots ?? []).map((s) => [s.key, s.card ?? null]));
             const fromEntries = customMultiEntries.map((e) => ({
               key: e.slotKey,
-              card: slotMap.get(e.slotKey) ?? { cardId: e.card.id, variant: e.card.variant },
+              card: slotMap.get(e.slotKey) ?? null,
             }));
             const userSlots = (collection.slots ?? []).filter((s) => s.key.startsWith('user-'));
             return [...fromEntries, ...userSlots];
@@ -1288,13 +1365,21 @@ export default function BinderScreen() {
               for (const variant of variants) allExpanded.push({ ...brief, variant });
             }
             if (!cancelled) {
-              setMasterPickerCards([...allExpanded, ...userEntries]);
+              const extras = getExtraPrintingsForName(masterPickerPokemon.name, { exact: false });
+              setMasterPickerCards([...allExpanded, ...userEntries, ...extras]);
               setMasterPickerLoading(false);
             }
           }
         }
+        if (!cancelled) {
+          const extras = getExtraPrintingsForName(masterPickerPokemon.name, { exact: false });
+          setMasterPickerCards([...allExpanded, ...userEntries, ...extras]);
+        }
       } catch {
-        if (!cancelled) setMasterPickerCards([]);
+        if (!cancelled) {
+          const extras = getExtraPrintingsForName(masterPickerPokemon.name, { exact: false });
+          setMasterPickerCards(extras);
+        }
       }
       if (!cancelled) setMasterPickerLoading(false);
     })();
@@ -1436,7 +1521,7 @@ export default function BinderScreen() {
           const slotMap = new Map<string, SlotCard | null>((collection.slots ?? []).map((s) => [s.key, s.card ?? null]));
           const fromEntries = customMultiEntries.map((e) => ({
             key: e.slotKey,
-            card: slotMap.get(e.slotKey) ?? { cardId: e.card.id, variant: e.card.variant },
+            card: slotMap.get(e.slotKey) ?? null,
           }));
           const userSlots = (collection.slots ?? []).filter((s) => s.key.startsWith('user-'));
           return [...fromEntries, ...userSlots];
@@ -1488,36 +1573,36 @@ export default function BinderScreen() {
           </View>
         )}
         <View style={styles.screenFill} />
-        <View style={styles.container}>
+        <View style={[styles.container, { paddingLeft: Math.max(20, insets.left), paddingRight: Math.max(20, insets.right) }]}>
         <View style={styles.topSection}>
-          <View style={styles.nameRowWithAction}>
-            <View style={styles.nameRowBlock}>
-              <Text style={styles.nameRowLabel}>Collection name</Text>
-              {isEditMode ? (
-                <TextInput
-                  style={styles.nameInput}
-                  placeholder={getCollectionDisplayName(collection)}
-                  placeholderTextColor="#888"
-                  value={editingName}
-                  onChangeText={setEditingName}
-                  onBlur={saveBinderName}
-                  cursorColor="#e8e8e8"
-                  selectionColor="rgba(255,255,255,0.2)"
-                />
-              ) : (
-                <Text style={styles.nameDisplay}>{collection.name}</Text>
-              )}
-            </View>
-            {isEditMode && (
+          <View style={styles.nameRowBlock}>
+            <Text style={styles.nameRowLabel}>Collection name</Text>
+            {isEditMode ? (
+              <TextInput
+                style={styles.nameInput}
+                placeholder={getCollectionDisplayName(collection)}
+                placeholderTextColor="#888"
+                value={editingName}
+                onChangeText={setEditingName}
+                onBlur={saveBinderName}
+                cursorColor="#e8e8e8"
+                selectionColor="rgba(255,255,255,0.2)"
+              />
+            ) : (
+              <Text style={styles.nameDisplay}>{collection.name}</Text>
+            )}
+          </View>
+          <Text style={styles.nameSubtitle}>{getCollectionSubtitle(collection)}</Text>
+          {isEditMode && (
+            <View style={styles.topSectionButtonRow}>
               <Pressable
                 style={({ pressed }) => [styles.addUserCardBtn, pressed && styles.rowPressed]}
                 onPress={() => { openAddUserCardModal(); }}
               >
                 <Text style={styles.addUserCardBtnText}>Add a missing card</Text>
               </Pressable>
-            )}
-          </View>
-          <Text style={styles.nameSubtitle}>{getCollectionSubtitle(collection)}</Text>
+            </View>
+          )}
           <Text style={styles.ctaProgressLabel}>Progress</Text>
           <View style={styles.progressBarOuter}>
             <View style={[styles.progressBarFill, { width: `${progressPct * 100}%` }]} />
@@ -1531,7 +1616,14 @@ export default function BinderScreen() {
           value={filter}
           onChangeText={setFilter}
         />
-        {viewMode === 'list' ? (
+        {cardsLoadError && pokemonList.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyStateText}>{cardsLoadError}</Text>
+            <Pressable style={({ pressed }) => [styles.seedButton, pressed && styles.rowPressed]} onPress={() => void load()}>
+              <Text style={styles.seedButtonText}>Try again</Text>
+            </Pressable>
+          </View>
+        ) : viewMode === 'list' ? (
           <FlatList
             key="master-list"
             data={filtered}
@@ -1821,7 +1913,10 @@ export default function BinderScreen() {
               </Text>
               <Text style={styles.masterPickerHint}>Tap one to set as collected</Text>
               {masterPickerLoading ? (
-                <ActivityIndicator size="large" color="#fff" style={{ marginVertical: 24 }} />
+                <View style={{ marginVertical: 24, alignItems: 'center' }}>
+                  <ActivityIndicator size="large" color="#fff" style={{ marginBottom: 12 }} />
+                  <Text style={styles.masterPickerHint}>Loading card images…</Text>
+                </View>
               ) : (
                 <ScrollView
                   style={styles.masterPickerScroll}
@@ -1974,36 +2069,36 @@ export default function BinderScreen() {
           </View>
         )}
         <View style={styles.screenFill} />
-        <View style={styles.container}>
+        <View style={[styles.container, { paddingLeft: Math.max(20, insets.left), paddingRight: Math.max(20, insets.right) }]}>
         <View style={styles.topSection}>
-          <View style={styles.nameRowWithAction}>
-            <View style={styles.nameRowBlock}>
-              <Text style={styles.nameRowLabel}>Collection name</Text>
-              {isEditMode ? (
-                <TextInput
-                  style={styles.nameInput}
-                  placeholder={collection.singlePokemonName ?? 'Binder'}
-                  placeholderTextColor="#888"
-                  cursorColor="#e8e8e8"
-                  selectionColor="rgba(255,255,255,0.2)"
-                  value={editingName}
-                  onChangeText={setEditingName}
-                  onBlur={saveBinderName}
-                />
-              ) : (
-                <Text style={styles.nameDisplay}>{collection.name}</Text>
-              )}
-            </View>
-            {isEditMode && (
+          <View style={styles.nameRowBlock}>
+            <Text style={styles.nameRowLabel}>Collection name</Text>
+            {isEditMode ? (
+              <TextInput
+                style={styles.nameInput}
+                placeholder={collection.singlePokemonName ?? 'Binder'}
+                placeholderTextColor="#888"
+                cursorColor="#e8e8e8"
+                selectionColor="rgba(255,255,255,0.2)"
+                value={editingName}
+                onChangeText={setEditingName}
+                onBlur={saveBinderName}
+              />
+            ) : (
+              <Text style={styles.nameDisplay}>{collection.name}</Text>
+            )}
+          </View>
+          <Text style={styles.nameSubtitle}>{getCollectionSubtitle(collection)}</Text>
+          {isEditMode && (
+            <View style={styles.topSectionButtonRow}>
               <Pressable
                 style={({ pressed }) => [styles.addUserCardBtn, pressed && styles.rowPressed]}
                 onPress={() => openAddUserCardModal()}
               >
                 <Text style={styles.addUserCardBtnText}>Add a missing card</Text>
               </Pressable>
-            )}
-          </View>
-          <Text style={styles.nameSubtitle}>{getCollectionSubtitle(collection)}</Text>
+            </View>
+          )}
           <Text style={styles.ctaProgressLabel}>Progress</Text>
           <View style={styles.progressBarOuter}>
             <View style={[styles.progressBarFill, { width: `${progressPct * 100}%` }]} />
@@ -2392,32 +2487,36 @@ export default function BinderScreen() {
           </View>
         )}
         <View style={styles.screenFill} />
-        <View style={styles.container}>
+        <View style={[styles.container, { paddingLeft: Math.max(20, insets.left), paddingRight: Math.max(20, insets.right) }]}>
           <View style={styles.topSection}>
-            <Text style={styles.nameRowLabel}>Collection name</Text>
-            {isEditMode ? (
-              <TextInput
-                style={styles.nameInput}
-                placeholder={collection.setName ?? 'Set'}
-                placeholderTextColor="#888"
-                value={editingName}
-                onChangeText={setEditingName}
-                onBlur={saveBinderName}
-                cursorColor="#e8e8e8"
-                selectionColor="rgba(255,255,255,0.2)"
-              />
-            ) : (
-              <Text style={styles.nameDisplay}>{collection.name}</Text>
-            )}
-            {isEditMode && (
-              <Pressable
-                style={({ pressed }) => [styles.addUserCardBtn, pressed && styles.rowPressed]}
-                onPress={() => openAddUserCardModal()}
-              >
-                <Text style={styles.addUserCardBtnText}>Add a missing card</Text>
-              </Pressable>
-            )}
+            <View style={styles.nameRowBlock}>
+              <Text style={styles.nameRowLabel}>Collection name</Text>
+              {isEditMode ? (
+                <TextInput
+                  style={styles.nameInput}
+                  placeholder={collection.setName ?? 'Set'}
+                  placeholderTextColor="#888"
+                  value={editingName}
+                  onChangeText={setEditingName}
+                  onBlur={saveBinderName}
+                  cursorColor="#e8e8e8"
+                  selectionColor="rgba(255,255,255,0.2)"
+                />
+              ) : (
+                <Text style={styles.nameDisplay}>{collection.name}</Text>
+              )}
+            </View>
             <Text style={styles.nameSubtitle}>{getCollectionSubtitle(collection)}</Text>
+            {isEditMode && (
+              <View style={styles.topSectionButtonRow}>
+                <Pressable
+                  style={({ pressed }) => [styles.addUserCardBtn, pressed && styles.rowPressed]}
+                  onPress={() => openAddUserCardModal()}
+                >
+                  <Text style={styles.addUserCardBtnText}>Add a missing card</Text>
+                </Pressable>
+              </View>
+            )}
             <Text style={styles.ctaProgressLabel}>Progress</Text>
             <View style={styles.progressBarOuter}>
               <View style={[styles.progressBarFill, { width: `${progressPct * 100}%` }]} />
@@ -2465,7 +2564,9 @@ export default function BinderScreen() {
                       style={({ pressed }) => [styles.listRow, pressed && styles.rowPressed]}
                       onPress={() => {
                         if (isEditMode) {
-                          openSetVersionPicker(slotKey);
+                          const variants = validVariantsByCardId[card.id];
+                          if (variants && variants.size > 1) openSetVersionPicker(slotKey);
+                          else handleCardPress(collection.type, slotKey, card.id, undefined, card.variant);
                         } else {
                           openCardOverlay({
                             imageUri: imageUri ?? null,
@@ -2512,7 +2613,9 @@ export default function BinderScreen() {
                         style={({ pressed }) => [styles.gridCell, gridCardLayout, pressed && styles.rowPressed]}
                         onPress={() => {
                           if (isEditMode) {
-                            openSetVersionPicker(slotKey);
+                            const variants = validVariantsByCardId[card.id];
+                            if (variants && variants.size > 1) openSetVersionPicker(slotKey);
+                            else handleCardPress(collection.type, slotKey, card.id, undefined, card.variant);
                           } else {
                             openCardOverlay({
                               imageUri: imageUri ?? null,
@@ -2719,9 +2822,6 @@ export default function BinderScreen() {
 
   if (collection.type === 'custom' && !(collection.customPokemonNames?.length ?? 0)) {
     const customSlots = effectiveCollection.slots ?? [];
-    const filledCount = customSlots.filter((s) => s.card).length;
-    const totalCount = customSlots.length;
-    const progressPct = totalCount > 0 ? filledCount / totalCount : 0;
     return (
       <View style={styles.screenRoot}>
         {exportGenerating && (
@@ -2731,54 +2831,47 @@ export default function BinderScreen() {
           </View>
         )}
         <View style={styles.screenFill} />
-        <View style={styles.container}>
+        <View style={[styles.container, { paddingLeft: Math.max(20, insets.left), paddingRight: Math.max(20, insets.right) }]}>
           <View style={styles.topSection}>
-            <View style={styles.nameRowWithAction}>
-              <View style={styles.nameRowBlock}>
-                <Text style={styles.nameRowLabel}>Collection name</Text>
-                {isEditMode ? (
-                  <TextInput
-                    style={styles.nameInput}
-                    placeholder="Custom binder"
-                    placeholderTextColor="#888"
-                    value={editingName}
-                    onChangeText={setEditingName}
-                    onBlur={saveBinderName}
-                    cursorColor="#e8e8e8"
-                    selectionColor="rgba(255,255,255,0.2)"
-                  />
-                ) : (
-                  <Text style={styles.nameDisplay}>{collection.name}</Text>
-                )}
-              </View>
-              {isEditMode && (
-                <>
-                  <Pressable
-                    style={({ pressed }) => [styles.addUserCardBtn, pressed && styles.rowPressed]}
-                    onPress={() => router.push(`/card-search-add?collectionId=${id}`)}
-                  >
-                    <Text style={styles.addUserCardBtnText}>Add card (search)</Text>
-                  </Pressable>
-                  <Pressable
-                    style={({ pressed }) => [styles.addUserCardBtn, pressed && styles.rowPressed]}
-                    onPress={() => openAddUserCardModal()}
-                  >
-                    <Text style={styles.addUserCardBtnText}>Add custom card</Text>
-                  </Pressable>
-                </>
+            <View style={styles.nameRowBlock}>
+              <Text style={styles.nameRowLabel}>Collection name</Text>
+              {isEditMode ? (
+                <TextInput
+                  style={styles.nameInput}
+                  placeholder="Custom binder"
+                  placeholderTextColor="#888"
+                  value={editingName}
+                  onChangeText={setEditingName}
+                  onBlur={saveBinderName}
+                  cursorColor="#e8e8e8"
+                  selectionColor="rgba(255,255,255,0.2)"
+                />
+              ) : (
+                <Text style={styles.nameDisplay}>{collection.name}</Text>
               )}
             </View>
             <Text style={styles.nameSubtitle}>{getCollectionSubtitle(collection)}</Text>
-            <Text style={styles.ctaProgressLabel}>Progress</Text>
-            <View style={styles.progressBarOuter}>
-              <View style={[styles.progressBarFill, { width: `${progressPct * 100}%` }]} />
-            </View>
-            <Text style={styles.ctaProgressText}>{filledCount}/{totalCount}</Text>
+            {isEditMode && (
+              <View style={styles.topSectionButtonRow}>
+                <Pressable
+                  style={({ pressed }) => [styles.addUserCardBtn, pressed && styles.rowPressed]}
+                  onPress={() => router.push(`/card-search-add?collectionId=${id}`)}
+                >
+                  <Text style={styles.addUserCardBtnText}>Add card (search)</Text>
+                </Pressable>
+                <Pressable
+                  style={({ pressed }) => [styles.addUserCardBtn, pressed && styles.rowPressed]}
+                  onPress={() => openAddUserCardModal()}
+                >
+                  <Text style={styles.addUserCardBtnText}>Add missing card</Text>
+                </Pressable>
+              </View>
+            )}
           </View>
           {customSlots.length === 0 ? (
             <View style={styles.emptyState}>
               <Text style={styles.emptyStateText}>
-                No cards yet. Tap &quot;Add card (search)&quot; or &quot;Add custom card&quot; in edit mode to add cards.
+                No cards yet. Tap &quot;Add card (search)&quot; or &quot;Add missing card&quot; in edit mode to add cards.
               </Text>
             </View>
           ) : viewMode === 'list' ? (
@@ -2816,8 +2909,8 @@ export default function BinderScreen() {
                     }}
                     onLongPress={() => slotCard && handleLongPressCard(slot.key, slotCard.cardId, slotCard.variant)}
                   >
-                    <Text style={styles.listRowName} numberOfLines={2}>{name}{variantLabel}</Text>
-                    <Text style={styles.listRowMeta} numberOfLines={2}>{setLabel}</Text>
+                    <Text style={[styles.listRowName, !slotCard && styles.listRowNameUncollected]} numberOfLines={2}>{name}{variantLabel}</Text>
+                    <Text style={[styles.listRowMeta, !slotCard && styles.listRowMetaUncollected]} numberOfLines={2}>{setLabel}</Text>
                     <View style={styles.listRowRight}>
                       {slotCard ? <Text style={styles.listRowCheck}>✓</Text> : <View style={styles.listRowEmpty} />}
                     </View>
@@ -2909,6 +3002,14 @@ export default function BinderScreen() {
                       <Text style={styles.cardOverlayInfoRow}>Collector #: {cardOverlay.collectorNumber}</Text>
                     </View>
                     <View style={styles.cardOverlayActions}>
+                      {isEditMode && cardOverlay.slotKey ? (
+                        <Pressable
+                          style={({ pressed }) => [styles.cardOverlayCloseBtn, styles.cardOverlayDeleteBtn, pressed && styles.rowPressed]}
+                          onPress={() => handleDeleteCardEmptyCustom(cardOverlay.slotKey!)}
+                        >
+                          <Text style={styles.cardOverlayDeleteText}>Delete</Text>
+                        </Pressable>
+                      ) : null}
                       <Pressable style={({ pressed }) => [styles.cardOverlayCloseBtn, pressed && styles.rowPressed]} onPress={closeCardOverlay}>
                         <Text style={styles.cardOverlayCloseText}>Close</Text>
                       </Pressable>
@@ -2923,7 +3024,7 @@ export default function BinderScreen() {
           <Pressable style={styles.masterPickerBackdrop} onPress={() => setAddUserCardVisible(false)}>
             <Pressable style={styles.masterPickerCard} onPress={(e) => e.stopPropagation()}>
               <ScrollView style={styles.addUserCardScroll} contentContainerStyle={styles.addUserCardScrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator>
-                <Text style={styles.masterPickerTitle}>Add custom card</Text>
+                <Text style={styles.masterPickerTitle}>Add a missing card</Text>
                 <Text style={styles.addUserCardHint}>Name and optional set/number. You can add a photo from your device.</Text>
                 <Text style={styles.addUserCardLabel}>Card name</Text>
                 <TextInput style={styles.addUserCardInput} placeholderTextColor="#888" placeholder="Card name" value={addUserCardName} onChangeText={setAddUserCardName} />
@@ -3010,44 +3111,36 @@ export default function BinderScreen() {
           </View>
         )}
         <View style={styles.screenFill} />
-        <View style={styles.container}>
+        <View style={[styles.container, { paddingLeft: Math.max(20, insets.left), paddingRight: Math.max(20, insets.right) }]}>
           <View style={styles.topSection}>
-            <View style={styles.nameRowWithAction}>
-              <View style={styles.nameRowBlock}>
-                <Text style={styles.nameRowLabel}>Collection name</Text>
-                {isEditMode ? (
-                  <TextInput
-                    style={styles.nameInput}
-                    placeholder="Custom binder"
-                    placeholderTextColor="#888"
-                    value={editingName}
-                    onChangeText={setEditingName}
-                    onBlur={saveBinderName}
-                    cursorColor="#e8e8e8"
-                    selectionColor="rgba(255,255,255,0.2)"
-                  />
-                ) : (
-                  <Text style={styles.nameDisplay}>{collection.name}</Text>
-                )}
-              </View>
-              {isEditMode && (
-                <>
-                  <Pressable
-                    style={({ pressed }) => [styles.addUserCardBtn, pressed && styles.rowPressed]}
-                    onPress={() => router.push(`/card-search-add?collectionId=${id}`)}
-                  >
-                    <Text style={styles.addUserCardBtnText}>Add card (search)</Text>
-                  </Pressable>
-                  <Pressable
-                    style={({ pressed }) => [styles.addUserCardBtn, pressed && styles.rowPressed]}
-                    onPress={() => openAddUserCardModal()}
-                  >
-                    <Text style={styles.addUserCardBtnText}>Add custom card</Text>
-                  </Pressable>
-                </>
+            <View style={styles.nameRowBlock}>
+              <Text style={styles.nameRowLabel}>Collection name</Text>
+              {isEditMode ? (
+                <TextInput
+                  style={styles.nameInput}
+                  placeholder="Custom binder"
+                  placeholderTextColor="#888"
+                  value={editingName}
+                  onChangeText={setEditingName}
+                  onBlur={saveBinderName}
+                  cursorColor="#e8e8e8"
+                  selectionColor="rgba(255,255,255,0.2)"
+                />
+              ) : (
+                <Text style={styles.nameDisplay}>{collection.name}</Text>
               )}
             </View>
             <Text style={styles.nameSubtitle}>{getCollectionSubtitle(collection)}</Text>
+            {isEditMode && (
+              <View style={styles.topSectionButtonRow}>
+                <Pressable
+                  style={({ pressed }) => [styles.addUserCardBtn, pressed && styles.rowPressed]}
+                  onPress={() => openAddUserCardModal()}
+                >
+                  <Text style={styles.addUserCardBtnText}>Add a missing card</Text>
+                </Pressable>
+              </View>
+            )}
             <Text style={styles.ctaProgressLabel}>Progress</Text>
             <View style={styles.progressBarOuter}>
               <View style={[styles.progressBarFill, { width: `${progressPct * 100}%` }]} />
@@ -3091,7 +3184,13 @@ export default function BinderScreen() {
                     style={({ pressed }) => [styles.listRow, pressed && styles.rowPressed]}
                     onPress={() => {
                       if (isEditMode) {
-                        handleCardPress(collection.type, slotKey, slotCard?.cardId ?? '', undefined, slotCard?.variant ?? 'normal');
+                        handleCardPress(
+                          collection.type,
+                          slotKey,
+                          slotCard?.cardId ?? (brief && 'id' in brief ? brief.id : ''),
+                          undefined,
+                          slotCard?.variant ?? (brief && 'variant' in brief ? brief.variant : 'normal')
+                        );
                       } else {
                         openCardOverlay({
                           imageUri: imageUri ?? null,
@@ -3106,8 +3205,8 @@ export default function BinderScreen() {
                     }}
                     onLongPress={() => slotCard && handleLongPressCard(slotKey, slotCard.cardId, slotCard.variant)}
                   >
-                    <Text style={styles.listRowName} numberOfLines={2}>{name}{variantLabel}</Text>
-                    <Text style={styles.listRowMeta} numberOfLines={2}>{setLabel} • #{collectorNum}</Text>
+                    <Text style={[styles.listRowName, !slotCard && styles.listRowNameUncollected]} numberOfLines={2}>{name}{variantLabel}</Text>
+                    <Text style={[styles.listRowMeta, !slotCard && styles.listRowMetaUncollected]} numberOfLines={2}>{setLabel} • #{collectorNum}</Text>
                     <View style={styles.listRowRight}>
                       {slotCard ? <Text style={styles.listRowCheck}>✓</Text> : <View style={styles.listRowEmpty} />}
                     </View>
@@ -3149,7 +3248,13 @@ export default function BinderScreen() {
                           style={({ pressed }) => [styles.gridCell, gridCardLayout, pressed && styles.rowPressed]}
                           onPress={() => {
                             if (isEditMode) {
-                              handleCardPress(collection.type, slotKey, slotCard?.cardId ?? '', undefined, slotCard?.variant ?? 'normal');
+                              handleCardPress(
+                                collection.type,
+                                slotKey,
+                                slotCard?.cardId ?? (brief && 'id' in brief ? brief.id : ''),
+                                undefined,
+                                slotCard?.variant ?? (brief && 'variant' in brief ? brief.variant : 'normal')
+                              );
                             } else {
                               openCardOverlay({
                                 imageUri: imageUri ?? null,
@@ -3261,6 +3366,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-end',
     gap: 12,
+    flexWrap: 'wrap',
+    alignSelf: 'stretch',
   },
   nameRowBlock: {
     flex: 1,
@@ -3268,7 +3375,6 @@ const styles = StyleSheet.create({
   },
   topSection: {
     backgroundColor: charcoal,
-    paddingHorizontal: 20,
     paddingTop: 16,
     paddingBottom: 16,
     borderBottomWidth: 1,
@@ -3283,6 +3389,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     alignSelf: 'stretch',
+    textAlign: 'center',
   },
   nameDisplay: {
     fontSize: 22,
@@ -3290,12 +3397,14 @@ const styles = StyleSheet.create({
     color: '#fff',
     marginBottom: 4,
     alignSelf: 'stretch',
+    textAlign: 'center',
   },
   nameSubtitle: {
     fontSize: 14,
     color: 'rgba(255,255,255,0.85)',
     marginBottom: 10,
     alignSelf: 'stretch',
+    textAlign: 'center',
   },
   nameInput: {
     paddingVertical: 12,
@@ -3309,6 +3418,16 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 22,
     fontWeight: 'bold',
+    textAlign: 'center',
+  },
+  topSectionButtonRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    alignSelf: 'stretch',
+    justifyContent: 'center',
+    marginTop: 4,
+    marginBottom: 12,
   },
   search: {
     margin: 12,
@@ -3380,6 +3499,8 @@ const styles = StyleSheet.create({
   },
   listRowName: { fontSize: 16, fontWeight: '600', color: '#fff', flex: 1 },
   listRowMeta: { fontSize: 13, color: 'rgba(255,255,255,0.7)', flex: 1 },
+  listRowNameUncollected: { opacity: 0.5 },
+  listRowMetaUncollected: { opacity: 0.5 },
   listRowRight: { width: 24, alignItems: 'center' },
   listRowCheck: { fontSize: 16, color: '#4caf50', fontWeight: '700' },
   listRowEmpty: { width: 16, height: 16, borderRadius: 8, borderWidth: 2, borderColor: 'rgba(255,255,255,0.3)' },
@@ -3396,6 +3517,9 @@ const styles = StyleSheet.create({
     position: 'relative',
     borderRadius: 8,
     overflow: 'hidden',
+  },
+  gridCardInnerUncollected: {
+    backgroundColor: 'rgba(60,60,60,0.5)',
   },
   gridCardImage: {
     width: '100%',
@@ -3526,6 +3650,15 @@ const styles = StyleSheet.create({
   cardOverlayCloseText: {
     fontSize: 15,
     color: 'rgba(255,255,255,0.95)',
+    fontWeight: '600',
+  },
+  cardOverlayDeleteBtn: {
+    backgroundColor: 'rgba(200,60,60,0.35)',
+    borderColor: 'rgba(220,80,80,0.6)',
+  },
+  cardOverlayDeleteText: {
+    fontSize: 15,
+    color: 'rgba(255,200,200,0.98)',
     fontWeight: '600',
   },
   singleSectionHeader: {

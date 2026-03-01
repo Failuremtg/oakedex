@@ -63,8 +63,38 @@ async function setCachedFallback(
 }
 
 /**
+ * TCGdex set ID -> Pokémon TCG API set ID for sets where the two APIs use different IDs.
+ * Used when direct card lookup fails so we can still get images (e.g. Celebrations, Shining Legends).
+ */
+const TCGDEX_TO_PTCGIO_SET_ID: Record<string, string> = {
+  slg: 'sm35',   // Shining Legends (TCGdex: slg, pokemontcg.io: sm35)
+  cel: 'cel25c', // Celebrations (TCGdex: cel, pokemontcg.io: cel25c)
+};
+
+async function fetchCardById(
+  cardId: string,
+  headers: Record<string, string>
+): Promise<{ imageLarge: string; imageSmall: string; name?: string; set?: { id: string; name: string } } | null> {
+  const url = `${BASE}/cards/${encodeURIComponent(cardId)}?select=id,name,number,set,images`;
+  const res = await fetch(url, { headers });
+  if (!res.ok) return null;
+  const json = (await res.json()) as PokemonTcgApiCardResponse;
+  const data = json?.data;
+  if (!data?.images?.large && !data?.images?.small) return null;
+  const imageLarge = data.images?.large ?? data.images?.small ?? '';
+  const imageSmall = data.images?.small ?? data.images?.large ?? '';
+  return {
+    imageLarge,
+    imageSmall,
+    name: data.name,
+    set: data.set ? { id: data.set.id, name: data.set.name } : undefined,
+  };
+}
+
+/**
  * Fetch a single card by id from Pokémon TCG API.
  * Card id format matches TCGdex: setId-localId (e.g. base1-1, swsh4-25).
+ * If direct lookup fails, tries mapped set ID for known sets (e.g. slg->sm35, cel->cel25c).
  * Returns image URLs and optional name/set; null if not found or error.
  */
 export async function getCardById(
@@ -77,23 +107,27 @@ export async function getCardById(
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (apiKey) headers['X-Api-Key'] = apiKey;
 
-  const url = `${BASE}/cards/${encodeURIComponent(cardId)}?select=id,name,number,set,images`;
   try {
-    const res = await fetch(url, { headers });
-    if (!res.ok) return null;
-    const json = (await res.json()) as PokemonTcgApiCardResponse;
-    const data = json?.data;
-    if (!data?.images?.large && !data?.images?.small) return null;
-    const imageLarge = data.images?.large ?? data.images?.small ?? '';
-    const imageSmall = data.images?.small ?? data.images?.large ?? '';
-    const result = {
-      imageLarge,
-      imageSmall,
-      name: data.name,
-      set: data.set ? { id: data.set.id, name: data.set.name } : undefined,
-    };
-    await setCachedFallback(cardId, result);
-    return result;
+    let result = await fetchCardById(cardId, headers);
+    if (result) {
+      await setCachedFallback(cardId, result);
+      return result;
+    }
+    const dash = cardId.lastIndexOf('-');
+    if (dash >= 0) {
+      const tcgdexSetId = cardId.slice(0, dash);
+      const localId = cardId.slice(dash + 1);
+      const ptcgioSetId = TCGDEX_TO_PTCGIO_SET_ID[tcgdexSetId];
+      if (ptcgioSetId) {
+        const altCardId = `${ptcgioSetId}-${localId}`;
+        result = await fetchCardById(altCardId, headers);
+        if (result) {
+          await setCachedFallback(cardId, result);
+          return result;
+        }
+      }
+    }
+    return null;
   } catch {
     return null;
   }

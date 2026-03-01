@@ -11,6 +11,7 @@ import {
 import { Text } from '@/components/Themed';
 import { CachedImage } from '@/components/CachedImage';
 import { setSlot } from '@/src/lib/collections';
+import { searchExtraPrintings } from '@/src/lib/extraPrintings';
 import { getCard, getCardsByName, type TCGdexLang } from '@/src/lib/tcgdex';
 import { normalizeTcgdexImageUrl } from '@/src/lib/tcgdex';
 import { getDisplayVariants, getVariantLabel, type CardVariant } from '@/src/types';
@@ -18,7 +19,7 @@ import { CARD_VARIANTS } from '@/src/types';
 
 const LANG: TCGdexLang = 'en';
 
-type CardBrief = { id: string; name: string; localId: string; image?: string; set?: { id: string; name: string } };
+type CardBrief = { id: string; name: string; localId: string; image?: string | null; set?: { id: string; name: string }; variant?: CardVariant };
 
 export default function CardSearchAddScreen() {
   const params = useLocalSearchParams<{ collectionId: string; slotKey?: string }>();
@@ -40,9 +41,28 @@ export default function CardSearchAddScreen() {
     }
     let cancelled = false;
     setLoading(true);
-    getCardsByName(LANG, query.trim(), { exact: false })
-      .then((cards) => {
-        if (!cancelled) setResults(cards ?? []);
+    const q = query.trim();
+    Promise.all([getCardsByName(LANG, q, { exact: false }), Promise.resolve(searchExtraPrintings(q))])
+      .then(([apiCards, extraCards]) => {
+        if (cancelled) return;
+        const apiList = (apiCards ?? []).map((c) => ({
+          id: c.id,
+          name: c.name,
+          localId: c.localId,
+          image: c.image ?? null,
+          set: c.set,
+        }));
+        const extraList = extraCards.map((c) => ({
+          id: c.id,
+          name: c.name,
+          localId: c.localId,
+          image: c.image ?? null,
+          set: c.set,
+          variant: c.variant,
+        }));
+        const seen = new Set(apiList.map((x) => x.id));
+        const merged = [...apiList, ...extraList.filter((e) => !seen.has(e.id))];
+        setResults(merged);
       })
       .catch(() => {
         if (!cancelled) setResults([]);
@@ -55,6 +75,11 @@ export default function CardSearchAddScreen() {
 
   const onSelectCard = useCallback(async (card: CardBrief) => {
     setSelectedCard(card);
+    if (card.id.startsWith('extra-') && card.variant) {
+      setVariants([card.variant]);
+      setLoadingVariants(false);
+      return;
+    }
     setLoadingVariants(true);
     try {
       const full = await getCard(LANG, card.id);

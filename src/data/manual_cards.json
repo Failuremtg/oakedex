@@ -1,0 +1,9 @@
+{
+  "setGroupSubSets": {
+    "Trick or Trade": ["2022", "2023", "2024", "2025"],
+    "Advent Calendar": ["2023", "2024", "2025"],
+    "Holiday Calendar": ["2022", "2023", "2024", "2025"],
+    "Stamped Promos": ["Pokemon Center", "Prerelease", "League", "Staff", "Store"]
+  },
+  "cards": []
+}

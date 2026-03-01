@@ -54,6 +54,17 @@ Signups are stored in Firestore collection `landingSignups`. Firebase config is 
 
 The form sends `email`, `beta` (yes if “I’m interested in beta testing” is checked), and `source` (hero/cta).
 
+## Feedback & bug reports
+
+The **Feedback** page (`feedback.html`) lets visitors submit feedback or bug reports. Submissions are stored in the same Firestore **`feedback`** collection that the app uses, so you see them in **Oakedex app → Settings → Admin → Feedback** (and in the Firebase Console).
+
+1. **Vercel environment variable**  
+   For the serverless API (`/api/feedback`) to write to Firestore, add in **Vercel → Project → Settings → Environment Variables**:
+   - **`FIREBASE_SERVICE_ACCOUNT_JSON`** – the **entire** contents of your Firebase service account JSON (Firebase Console → Project settings → Service accounts → Generate new private key). Paste the full JSON as a string (one line is fine).
+
+2. **No Firestore rule change**  
+   The API uses the Firebase Admin SDK, so it can write to `feedback` without changing client rules. Web submissions are stored with `userId: "web"` and optional `userEmail` from the form.
+
 ## Deploy
 
 The landing folder is self-contained and ready for any static host. For **Vercel**, see “Deploy to Vercel” above. For others, upload the contents of `landing/` and point the site at the directory that contains `index.html`.

@@ -1,0 +1,64 @@
+{
+  "series": "Holiday Calendar",
+  "pattern": "Snowflake stamp (Holiday Calendar exclusive reprints; numbers are the original card numbers from their source sets)",
+  "defaultLanguages": ["en"],
+  "languageNote": "Holiday Calendar products are sold internationally, but this checklist is using the International/English card numbering shown on TCG Collector. If you add non-English printings later, keep the same number and add localized names + languagesAvailable.",
+  "sets": [
+    {
+      "set": "Holiday Calendar 2022",
+      "releaseDate": "2022-09-01",
+      "cards": [
+        { "name": "Abomasnow", "number": "010/198", "languages": ["en"] },
+        { "name": "Delibird", "number": "032/198", "languages": ["en"] },
+        { "name": "Ice Rider Calyrex V", "number": "045/198", "languages": ["en"] },
+        { "name": "Ice Rider Calyrex VMAX", "number": "046/198", "languages": ["en"] },
+        { "name": "Beartic", "number": "049/189", "languages": ["en"] },
+        { "name": "Eiscue V", "number": "055/192", "languages": ["en"] },
+        { "name": "Lapras", "number": "048/202", "languages": ["en"] },
+        { "name": "Pikachu", "number": "SWSH153", "languages": ["en"] }
+      ]
+    },
+    {
+      "set": "Holiday Calendar 2023",
+      "releaseDate": "2023-09-01",
+      "cards": [
+        { "name": "Alolan Vulpix V", "number": "033/195", "languages": ["en"] },
+        { "name": "Pikachu", "number": "049/195", "languages": ["en"] },
+        { "name": "Glastrier", "number": "051/196", "languages": ["en"] },
+        { "name": "Stantler", "number": "125/189", "languages": ["en"] },
+        { "name": "Snom", "number": "084/264", "languages": ["en"] },
+        { "name": "Glaceon V", "number": "040/203", "languages": ["en"] },
+        { "name": "Glaceon VMAX", "number": "041/203", "languages": ["en"] },
+        { "name": "Cryogonal", "number": "043/203", "languages": ["en"] }
+      ]
+    },
+    {
+      "set": "Holiday Calendar 2024",
+      "releaseDate": "2024-08-23",
+      "cards": [
+        { "name": "Iron Bundle", "number": "062/167", "languages": ["en"] },
+        { "name": "Snorunt", "number": "037/182", "languages": ["en"] },
+        { "name": "Vanilluxe", "number": "045/182", "languages": ["en"] },
+        { "name": "Eiscue ex", "number": "042/197", "languages": ["en"] },
+        { "name": "Cetoddle", "number": "053/193", "languages": ["en"] },
+        { "name": "Frigibax", "number": "058/193", "languages": ["en"] },
+        { "name": "Chien-Pao ex", "number": "061/193", "languages": ["en"] },
+        { "name": "Pikachu ex", "number": "063/193", "languages": ["en"] }
+      ]
+    },
+    {
+      "set": "Holiday Calendar 2025",
+      "releaseDate": "2025-08-22",
+      "cards": [
+        { "name": "Articuno", "number": "032/159", "languages": ["en"] },
+        { "name": "Glaceon ex", "number": "026/131", "languages": ["en"] },
+        { "name": "Cryogonal", "number": "047/191", "languages": ["en"] },
+        { "name": "Crabominable", "number": "149/142", "languages": ["en"] },
+        { "name": "Vanillish", "number": "190/182", "languages": ["en"] },
+        { "name": "Pikachu", "number": "025/165", "languages": ["en"] },
+        { "name": "Eevee", "number": "133/165", "languages": ["en"] },
+        { "name": "Delibird", "number": "046/193", "languages": ["en"] }
+      ]
+    }
+  ]
+}

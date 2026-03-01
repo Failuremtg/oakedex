@@ -162,7 +162,7 @@ export default function NewCustomScreen() {
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <Text style={styles.chooseTitle}>Custom binder</Text>
         <Text style={styles.chooseHint}>
-          Start with an empty binder and add cards via search, or choose multiple Pokémon to collect.
+          Choose one: an empty binder you fill yourself, or a multi-Pokémon binder with all versions of the Pokémon you pick.
         </Text>
         <Pressable
           style={({ pressed }) => [styles.chooseCard, pressed && styles.chooseCardPressed]}

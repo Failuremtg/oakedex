@@ -5,6 +5,7 @@
 import type { Collection } from '@/src/types';
 import { filterVariantsByEdition, getDisplayVariants } from '@/src/types';
 import { getCustomCards } from '@/src/lib/adminBinderConfig';
+import { listManualCards, manualCardsToCustomCards } from '@/src/lib/manualCards';
 import { getPocketSetIds, getSetWithCache, getSpeciesWithCache } from '@/src/lib/cardDataCache';
 import { addMasterBallIfEligible } from '@/src/lib/masterBallSets';
 import { getExpandedSpeciesList, getTcgSearchName } from '@/src/lib/masterSetExpansion';
@@ -109,15 +110,17 @@ export async function getCollectionProgress(c: Collection): Promise<CollectionPr
 
   if (c.type === 'collect_them_all' || c.type === 'master_set' || c.type === 'master_dex') {
     try {
-      const [base, customCards] = await Promise.all([
+      const [base, customCards, manualCards] = await Promise.all([
         getSpeciesWithCache(),
         getCustomCards(),
+        listManualCards(),
       ]);
       const species =
         c.type === 'master_set' || c.type === 'master_dex'
           ? getExpandedSpeciesList(base, c.masterSetOptions)
           : base;
-      const total = species.length + customCards.length;
+      const customFromManual = manualCardsToCustomCards(manualCards);
+      const total = species.length + customCards.length + customFromManual.length;
       return { filled, total };
     } catch {
       return { filled, total: null };

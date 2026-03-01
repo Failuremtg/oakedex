@@ -4,6 +4,7 @@
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import type { CustomCard } from '@/src/types';
 import type {
   ManualCard,
   ManualCardGroup,
@@ -382,6 +383,37 @@ export async function getManualCardsGrouped(): Promise<ManualCardGroup[]> {
 export async function getManualCard(manualId: string): Promise<ManualCard | null> {
   const data = await loadStorage();
   return data.cards.find((c) => c.manualId === manualId) ?? null;
+}
+
+/** dexId used for manual/stamped cards so they sort after main species in master set list. */
+export const MANUAL_CARDS_DEX_ID = 10000;
+
+/**
+ * Convert manual cards (e.g. stamped promos) to CustomCard shape so they can be merged
+ * into the master set / CTA binder list and shown like other custom cards.
+ */
+export function manualCardsToCustomCards(manualCards: ManualCard[]): CustomCard[] {
+  return manualCards.map((m) => {
+    const name = (m.pokemon?.en ?? m.manualId).trim() || m.manualId;
+    const variants = {
+      normal: true,
+      reverse: false,
+      holo: false,
+      firstEdition: false,
+      wPromo: true,
+    };
+    return {
+      id: m.tcgdexId ?? m.manualId,
+      slotKey: m.manualId,
+      name,
+      dexId: MANUAL_CARDS_DEX_ID,
+      localId: m.numberDisplay ?? String(m.number),
+      setId: m.setGroup,
+      setName: `${m.setGroup} – ${m.subSet}`,
+      image: null,
+      variants,
+    };
+  });
 }
 
 // --- Merge with TCGdex ---

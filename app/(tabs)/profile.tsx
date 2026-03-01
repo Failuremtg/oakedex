@@ -140,6 +140,7 @@ export default function TrainerIdScreen() {
   });
   const bySetCollections = collections.filter((c) => c.type === 'by_set');
   const singlePokemonCollections = collections.filter((c) => c.type === 'single_pokemon');
+  const customCollections = collections.filter((c) => c.type === 'custom');
 
   const memberSince = user?.metadata?.creationTime
     ? formatMemberSince((user.metadata as { creationTime?: string }).creationTime)
@@ -339,7 +340,7 @@ export default function TrainerIdScreen() {
           {bySetCollections.length > 0 && (
             <View style={styles.section}>
               <Text style={styles.sectionLabel}>Set collections</Text>
-{bySetCollections.map((c) => {
+              {bySetCollections.map((c) => {
                 const prog = progressById[c.id];
                 const total = prog?.total ?? null;
                 const filled = prog?.filled ?? 0;
@@ -353,6 +354,47 @@ export default function TrainerIdScreen() {
                     <Image source={source} style={styles.setIcon} resizeMode="contain" />
                     <View style={styles.binderRowContent}>
                       <Text style={styles.binderName}>{getCollectionDisplayName(c)}</Text>
+                      <Text style={styles.binderProgress}>
+                        {filled}
+                        {total != null ? ` / ${total}` : ''} collected
+                      </Text>
+                    </View>
+                    {total != null && total > 0 && (
+                      <View style={styles.progressBarOuter}>
+                        <View
+                          style={[
+                            styles.progressBarFill,
+                            { width: `${Math.min(100, (filled / total) * 100)}%` },
+                          ]}
+                        />
+                      </View>
+                    )}
+                  </View>
+                );
+              })}
+            </View>
+          )}
+
+          {/* Custom binders: icon + progress */}
+          {customCollections.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionLabel}>Custom collections</Text>
+              {customCollections.map((c) => {
+                const prog = progressById[c.id];
+                const total = prog?.total ?? null;
+                const filled = prog?.filled ?? 0;
+                const subtitle = getCollectionSubtitle(c);
+                const iconUri = getCollectionIconUri(c);
+                const source =
+                  iconUri === POKE_BALL_ICON_BW_SENTINEL
+                    ? require('@/assets/images/pokeball-bw.png')
+                    : { uri: normalizeTcgdexImageUrl(iconUri) ?? iconUri };
+                return (
+                  <View key={c.id} style={styles.binderRow}>
+                    <Image source={source} style={styles.setIcon} resizeMode="contain" />
+                    <View style={styles.binderRowContent}>
+                      <Text style={styles.binderName}>{getCollectionDisplayName(c)}</Text>
+                      <Text style={styles.binderSubtitle}>{subtitle}</Text>
                       <Text style={styles.binderProgress}>
                         {filled}
                         {total != null ? ` / ${total}` : ''} collected

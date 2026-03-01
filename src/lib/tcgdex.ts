@@ -193,21 +193,31 @@ export async function getSet(lang: TCGdexLang, setId: string): Promise<TCGdexSet
   return fetchJson<TCGdexSet>(`${BASE}/${toTcgdexApiLang(lang)}/sets/${setId}`);
 }
 
-/** Get a single card by id (full details including dexId and variants). Uses persistent cache so revisiting a binder or search is instant. When TCGdex has no image, fills from Pokémon TCG API (pokemontcg.io) if available. */
+async function fillCardImage(lang: TCGdexLang, card: TCGdexCard): Promise<void> {
+  if (card.image) return;
+  const constructedUrl = normalizeTcgdexImageUrl(cardImageUrlFromId(lang, card.id, card.localId)) ?? cardImageUrlFromId(lang, card.id, card.localId);
+  try {
+    const { getFallbackCardImageUrl } = await import('./pokemonTcgApi');
+    const fallbackUrl = await getFallbackCardImageUrl(card.id);
+    card.image = fallbackUrl ?? constructedUrl;
+  } catch {
+    card.image = constructedUrl;
+  }
+}
+
+/** Get a single card by id (full details including dexId and variants). Uses persistent cache so revisiting a binder or search is instant. When TCGdex has no image, tries constructed TCGdex asset URL then Pokémon TCG API (pokemontcg.io) if available. */
 export async function getCard(lang: TCGdexLang, cardId: string): Promise<TCGdexCard> {
   const { getCachedCard, setCachedCard } = await import('./cardDataCache');
   const cached = await getCachedCard(toTcgdexApiLang(lang), cardId);
-  if (cached != null) return cached;
-  const card = await fetchJson<TCGdexCard>(`${BASE}/${toTcgdexApiLang(lang)}/cards/${cardId}`);
-  if (!card.image) {
-    try {
-      const { getFallbackCardImageUrl } = await import('./pokemonTcgApi');
-      const fallbackUrl = await getFallbackCardImageUrl(card.id);
-      if (fallbackUrl) card.image = fallbackUrl;
-    } catch {
-      // keep card as-is
+  if (cached != null) {
+    if (!cached.image) {
+      await fillCardImage(lang, cached);
+      await setCachedCard(toTcgdexApiLang(lang), cardId, cached).catch(() => {});
     }
+    return cached;
   }
+  const card = await fetchJson<TCGdexCard>(`${BASE}/${toTcgdexApiLang(lang)}/cards/${cardId}`);
+  await fillCardImage(lang, card);
   await setCachedCard(toTcgdexApiLang(lang), cardId, card).catch(() => {});
   return card;
 }
