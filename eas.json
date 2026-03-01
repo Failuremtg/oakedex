@@ -15,7 +15,7 @@
     },
     "production": {
       "env": { "EAS_BUILD_NO_EXPO_GO_WARNING": "true" },
-      "android": { "buildType": "app-bundle", "credentialsSource": "remote" },
+      "android": { "buildType": "app-bundle", "credentialsSource": "local" },
       "ios": { "resourceClass": "m-medium" }
     },
     "production-apk": {
@@ -28,6 +28,9 @@
     "production": {
       "ios": {
         "ascAppId": "6759845006"
+      },
+      "android": {
+        "track": "internal"
       }
     }
   }
