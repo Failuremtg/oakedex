@@ -1079,6 +1079,28 @@ body {
   outline: none;
 }
 
+.feedback-form .form-textarea--short {
+  min-height: 100px;
+}
+
+.feedback-form .form-input--file {
+  padding: 10px 14px;
+  cursor: pointer;
+}
+
+.feedback-form .form-input--file::file-selector-button {
+  margin-right: 12px;
+  padding: 8px 14px;
+  font-family: var(--font);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--primary);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
 .feedback-form .form-hint {
   margin: 6px 0 0;
   font-size: 0.85rem;

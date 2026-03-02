@@ -290,6 +290,13 @@ export async function saveBinderOrder(orderedIds: string[]): Promise<void> {
   await AsyncStorage.setItem(BINDER_ORDER_KEY, JSON.stringify(orderedIds));
 }
 
+/** Clear all binders and order (local + Firestore). Use for testing / reset. */
+export async function clearAllCollections(): Promise<void> {
+  setCachedCollections([]);
+  await saveCollections([]);
+  await saveBinderOrder([]);
+}
+
 /** Load collections and return them in the user's display order (CTA first by default, then by saved order). If collections are provided, use that list (e.g. from loadCollectionsForDisplay); otherwise load from storage. */
 export async function getCollectionsInDisplayOrder(collections?: Collection[]): Promise<Collection[]> {
   const list = collections ?? await loadCollections();

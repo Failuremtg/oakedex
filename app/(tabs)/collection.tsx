@@ -1,6 +1,8 @@
+import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { BinderCover } from '@/components/BinderCover';
 import { SyncLoadingScreen } from '@/components/SyncLoadingScreen';
 import { Text } from '@/components/Themed';
 import { loadCollectionsForDisplay, type Collection } from '@/src/lib/collections';
@@ -9,6 +11,9 @@ import { getCollectionDisplayName, getCollectionSubtitle } from '@/src/lib/colle
 import { hapticLight } from '@/src/lib/haptics';
 import type { Slot } from '@/src/types';
 import { useAuth } from '@/src/auth/AuthContext';
+
+const BINDER_THUMB_WIDTH = 64;
+const BINDER_THUMB_HEIGHT = 88;
 
 export default function CollectionTabScreen() {
   const router = useRouter();
@@ -61,8 +66,55 @@ export default function CollectionTabScreen() {
     );
   }
 
+  const emptyState = (
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={[styles.content, styles.emptyStateContent]}
+      showsVerticalScrollIndicator={false}
+    >
+      <Image
+        source={require('@/assets/images/oakedex-logo.png')}
+        style={styles.logo}
+        resizeMode="contain"
+      />
+      <View style={styles.emptyStateIconWrap}>
+        <View style={styles.emptyStateBinderWrap}>
+          <BinderCover
+            width={BINDER_THUMB_WIDTH * 1.5}
+            height={BINDER_THUMB_HEIGHT * 1.5}
+            color="#6b6b6b"
+            subtleRings
+          />
+        </View>
+        <View style={styles.emptyStateStickerWrap}>
+          <FontAwesome name="plus" size={40} color="rgba(255,255,255,0.9)" />
+        </View>
+      </View>
+      <Text style={styles.emptyStateTitle}>Create a binder</Text>
+      <Text style={styles.emptyStateHint}>
+        Add a Single Pokémon binder, Master Set, or set collection to get started.
+      </Text>
+      <Pressable
+        style={({ pressed }) => [styles.emptyStateButton, pressed && styles.cardPressed]}
+        onPress={() => {
+          hapticLight();
+          if (!user) {
+            router.push('/login');
+            return;
+          }
+          router.push('/new-single');
+        }}
+      >
+        <Text style={styles.emptyStateButtonText}>Add your first collection</Text>
+      </Pressable>
+    </ScrollView>
+  );
+
   return (
     <View style={styles.screen}>
+      {collections.length === 0 ? (
+        emptyState
+      ) : (
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
         <Image
           source={require('@/assets/images/oakedex-logo.png')}
@@ -134,6 +186,7 @@ export default function CollectionTabScreen() {
           <Text style={styles.addButtonText}>+ New Single Pokémon binder</Text>
         </Pressable>
       </ScrollView>
+      )}
     </View>
   );
 }
@@ -149,6 +202,47 @@ const styles = StyleSheet.create({
     width: 240,
     marginBottom: 24,
   },
+  emptyStateContent: {
+    flexGrow: 1,
+    alignItems: 'center',
+    paddingTop: 24,
+    paddingHorizontal: 24,
+  },
+  emptyStateIconWrap: {
+    marginTop: 20,
+    marginBottom: 24,
+    position: 'relative',
+    width: BINDER_THUMB_WIDTH * 1.5,
+    height: BINDER_THUMB_HEIGHT * 1.5,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emptyStateBinderWrap: {
+    position: 'absolute',
+    transform: [{ perspective: 400 }, { rotateY: '-24deg' }],
+  },
+  emptyStateStickerWrap: {
+    position: 'absolute',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emptyStateTitle: { fontSize: 20, fontWeight: '700', color: '#fff', marginBottom: 8, textAlign: 'center' },
+  emptyStateHint: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.65)',
+    textAlign: 'center',
+    marginBottom: 28,
+    paddingHorizontal: 16,
+  },
+  emptyStateButton: {
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(76, 175, 80, 0.5)',
+    alignItems: 'center',
+    minWidth: 220,
+  },
+  emptyStateButtonText: { fontSize: 16, color: '#fff', fontWeight: '600' },
   card: {
     backgroundColor: 'rgba(255,255,255,0.08)',
     borderRadius: 12,

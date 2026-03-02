@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Submit a missing card for Oakedex – upload a photo and details so we can add it." />
+  <title>Submit a missing card – Oakedex</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-inner">
+      <a href="index.html" class="logo-link" aria-label="Oakedex home">
+        <img src="assets/oakedex-logo.svg" alt="Oakedex" class="logo-img" />
+      </a>
+      <nav class="nav">
+        <a href="index.html">Home</a>
+        <a href="feedback.html">Feedback</a>
+        <a href="missing-card.html" class="nav-cta">Missing card</a>
+        <a href="policy.html">Privacy</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="policy-page feedback-page">
+    <div class="container">
+      <h1 class="policy-title">Submit a missing card</h1>
+      <p class="feedback-lead">Found a card that’s not in the app? Submit it here like an admin would: name, set, and a photo. We’ll use this to add it.</p>
+
+      <form id="missing-card-form" class="feedback-form missing-card-form" action="#" method="POST" novalidate>
+        <div class="form-group">
+          <label for="card-name">Card name <span class="form-hint">(required)</span></label>
+          <input
+            type="text"
+            id="card-name"
+            name="cardName"
+            class="form-input"
+            placeholder="e.g. Pikachu 025/165"
+            required
+            maxlength="200"
+          />
+        </div>
+        <div class="form-group">
+          <label for="set-name">Set name <span class="form-hint">(optional)</span></label>
+          <input
+            type="text"
+            id="set-name"
+            name="setName"
+            class="form-input"
+            placeholder="e.g. Scarlet &amp; Violet—Paldea Evolved"
+            maxlength="200"
+          />
+        </div>
+        <div class="form-group">
+          <label for="card-notes">Notes <span class="form-hint">(optional – language, variant, etc.)</span></label>
+          <textarea
+            id="card-notes"
+            name="notes"
+            class="form-textarea form-textarea--short"
+            placeholder="e.g. Japanese version, reverse holo"
+            maxlength="2000"
+          ></textarea>
+        </div>
+        <div class="form-group">
+          <label for="card-email">Your email <span class="form-hint">(optional – if we need to follow up)</span></label>
+          <input
+            type="email"
+            id="card-email"
+            name="email"
+            class="form-input"
+            placeholder="you@example.com"
+            autocomplete="email"
+          />
+        </div>
+        <div class="form-group">
+          <label for="card-image">Photo of the card <span class="form-hint">(required – JPG, PNG, WebP or GIF, max 4 MB)</span></label>
+          <input
+            type="file"
+            id="card-image"
+            name="image"
+            class="form-input form-input--file"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            required
+          />
+          <p class="form-hint" id="card-image-hint">No file chosen</p>
+        </div>
+        <div class="submit-wrap">
+          <button type="submit" class="btn btn-primary" id="missing-card-submit">Submit card</button>
+          <p id="missing-card-message" class="signup-message" aria-live="polite" hidden></p>
+        </div>
+      </form>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-inner">
+      <p class="footer-brand">Oakedex</p>
+      <p class="footer-legal">Pokémon and Pokémon TCG are © of The Pokémon Company. This app is not affiliated with or endorsed by them.</p>
+    </div>
+  </footer>
+  <script src="missing-card.js"></script>
+</body>
+</html>

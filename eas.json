@@ -10,7 +10,7 @@
     },
     "preview": {
       "distribution": "internal",
-      "android": { "buildType": "apk" },
+      "android": { "buildType": "apk", "credentialsSource": "remote" },
       "ios": { "resourceClass": "m-medium" }
     },
     "production": {

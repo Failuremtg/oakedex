@@ -43,6 +43,7 @@ export function CachedImage({
   const [loadFailed, setLoadFailed] = useState(false);
   const [fallbackUri, setFallbackUri] = useState<string | null>(null);
   const [triedFallback, setTriedFallback] = useState(false);
+  const [imageLoaded, setImageLoaded] = useState(false);
 
   const effectiveOverride = overrideUri ?? localOverrideUri ?? cloudAdminUri;
 
@@ -89,6 +90,7 @@ export function CachedImage({
       setLoadFailed(false);
       setFallbackUri(null);
       setTriedFallback(false);
+      setImageLoaded(false);
       return;
     }
     if (remoteUri == null || remoteUri === '') {
@@ -97,11 +99,13 @@ export function CachedImage({
       setLoadFailed(false);
       setFallbackUri(null);
       setTriedFallback(false);
+      setImageLoaded(false);
       return;
     }
     setLoadFailed(false);
     setFallbackUri(null);
     setTriedFallback(false);
+    setImageLoaded(false);
     if (remoteUri.startsWith('file://')) {
       setCachedUri(remoteUri);
       setTryLowQuality(false);
@@ -163,16 +167,27 @@ export function CachedImage({
   };
 
   return (
-    <Image
-      source={{ uri: displayUri ?? undefined }}
-      style={style}
-      resizeMode={resizeMode}
-      onError={handleError}
-    />
+    <>
+      {!imageLoaded && <View style={[style, styles.imagePlaceholder]} pointerEvents="none" />}
+      <Image
+        source={{ uri: displayUri ?? undefined }}
+        style={[style, !imageLoaded && styles.imageHidden]}
+        resizeMode={resizeMode}
+        onLoadEnd={() => setImageLoaded(true)}
+        onError={handleError}
+      />
+    </>
   );
 }
 
 const styles = StyleSheet.create({
+  imagePlaceholder: {
+    position: 'absolute',
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  imageHidden: {
+    opacity: 0,
+  },
   missingWrap: {
     backgroundColor: 'rgba(255,255,255,0.12)',
     justifyContent: 'center',

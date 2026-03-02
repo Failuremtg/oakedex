@@ -65,6 +65,22 @@ The **Feedback** page (`feedback.html`) lets visitors submit feedback or bug rep
 2. **No Firestore rule change**  
    The API uses the Firebase Admin SDK, so it can write to `feedback` without changing client rules. Web submissions are stored with `userId: "web"` and optional `userEmail` from the form.
 
+## Submit a missing card
+
+The **Missing card** page (`missing-card.html`) lets visitors submit a card that’s not in the app: card name, optional set name and notes, optional email, and a **required photo**. Submissions are stored in Firestore collection **`missingCardSubmissions`** and the image is uploaded to Firebase Storage under **`missingCardSubmissions/{id}/`**.
+
+- **Same env**  
+  Uses the same **`FIREBASE_SERVICE_ACCOUNT_JSON`** as the feedback API (no extra env vars).
+
+- **Where to see submissions**  
+  - **Firebase Console:** Firestore → `missingCardSubmissions` (each doc has `cardName`, `setName`, `notes`, `submitterEmail`, **`imageUrl`** (link to the photo), `imageFileName`, `createdAt`).  
+  - **Storage:** Storage → `missingCardSubmissions/{id}/` to see the uploaded image file.  
+  - You can later add an “Admin → Missing card submissions” screen in the app (admins can read this collection per Firestore rules).
+
+- **Storage rules**  
+  Deploy updated Storage rules so the submission images are readable (the stored `imageUrl` points at them):  
+  `firebase deploy --only storage`
+
 ## Deploy
 
 The landing folder is self-contained and ready for any static host. For **Vercel**, see “Deploy to Vercel” above. For others, upload the contents of `landing/` and point the site at the directory that contains `index.html`.

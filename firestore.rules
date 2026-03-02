@@ -57,5 +57,12 @@ service cloud.firestore {
              || request.auth.token.email in get(/databases/$(database)/documents/config/admins).data.get('emails', []));
       allow update: if false;
     }
+    // Missing card submissions (web form): written by serverless API only; admins can read (e.g. in app or Console).
+    match /missingCardSubmissions/{submissionId} {
+      allow read: if request.auth != null
+        && (request.auth.uid in get(/databases/$(database)/documents/config/admins).data.get('uids', [])
+             || request.auth.token.email in get(/databases/$(database)/documents/config/admins).data.get('emails', []));
+      allow create, update, delete: if false;
+    }
   }
 }

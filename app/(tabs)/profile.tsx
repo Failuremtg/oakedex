@@ -15,7 +15,7 @@ import { Text } from '@/components/Themed';
 import { SyncLoadingScreen } from '@/components/SyncLoadingScreen';
 import { useAuth } from '@/src/auth/AuthContext';
 import { isFirebaseConfigured } from '@/src/lib/firebase';
-import { loadCollectionsForDisplay } from '@/src/lib/collections';
+import { clearAllCollections, loadCollectionsForDisplay } from '@/src/lib/collections';
 import type { Collection } from '@/src/types';
 import {
   getCollectionDisplayName,
@@ -151,6 +151,9 @@ export default function TrainerIdScreen() {
       <View style={[styles.container, { paddingTop: insets.top, paddingHorizontal: 24 }]}>
         <Text style={styles.title}>Trainer ID</Text>
         <Text style={styles.hint}>Add Firebase config to enable sign-in.</Text>
+        <Text style={[styles.hint, { marginTop: 12, fontSize: 13 }]}>
+          Local dev: put .env in the oakedex folder with EXPO_PUBLIC_FIREBASE_API_KEY and EXPO_PUBLIC_FIREBASE_PROJECT_ID (Firebase Console → Project settings). Restart with cache clear: npx expo start -c. Built app: set those in EAS (expo.dev → Environment variables), then rebuild.
+        </Text>
       </View>
     );
   }
@@ -415,6 +418,34 @@ export default function TrainerIdScreen() {
               })}
             </View>
           )}
+
+          {/* Test: clear all binders */}
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>Test</Text>
+            <Pressable
+              style={({ pressed }) => [styles.clearAllButton, pressed && styles.rowPressed]}
+              onPress={() => {
+                hapticLight();
+                Alert.alert(
+                  'Clear all binders?',
+                  'This will remove every collection (local and synced). You cannot undo this.',
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                      text: 'Clear all',
+                      style: 'destructive',
+                      onPress: async () => {
+                        await clearAllCollections();
+                        await load();
+                      },
+                    },
+                  ]
+                );
+              }}
+            >
+              <Text style={styles.clearAllButtonText}>Clear all binders (test)</Text>
+            </Pressable>
+          </View>
         </>
       )}
     </ScrollView>
@@ -529,4 +560,13 @@ const styles = StyleSheet.create({
     borderRadius: 3,
     backgroundColor: 'rgba(76, 175, 80, 0.9)',
   },
+  clearAllButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    backgroundColor: 'rgba(244, 67, 54, 0.25)',
+    borderWidth: 1,
+    borderColor: 'rgba(244, 67, 54, 0.4)',
+  },
+  clearAllButtonText: { fontSize: 14, color: 'rgba(255,255,255,0.9)' },
 });

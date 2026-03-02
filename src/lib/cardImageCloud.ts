@@ -13,7 +13,7 @@ import {
   deleteDoc,
   serverTimestamp,
 } from 'firebase/firestore';
-import { ref, uploadBytes, uploadString, getDownloadURL, deleteObject } from 'firebase/storage';
+import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { Platform } from 'react-native';
 import { getFirebaseFirestore } from './firebase';
 import { getFirebaseStorage } from './firebase';
@@ -37,6 +37,16 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
     binary += String.fromCharCode.apply(null, chunk as unknown as number[]);
   }
   return btoa(binary);
+}
+
+/** Base64 → Uint8Array for uploadBytes (avoids Blob creation inside Firebase SDK on React Native). */
+function base64ToUint8Array(base64: string): Uint8Array {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
 }
 
 /** Get image data as Blob (web) or base64 (RN). Avoids response.blob() on RN (ArrayBuffer/Blob not supported). */
@@ -79,7 +89,9 @@ export async function uploadCardImageToCloud(cardId: string, localFileUri: strin
 
   const data = await getImageDataForUpload(localFileUri);
   if (data.base64) {
-    await uploadString(storageRef, data.base64, 'base64');
+    // Use uploadBytes with Uint8Array so we never create a Blob (RN doesn't support Blob from ArrayBuffer).
+    const bytes = base64ToUint8Array(data.base64);
+    await uploadBytes(storageRef, bytes);
   } else if (data.blob) {
     await uploadBytes(storageRef, data.blob);
   } else {

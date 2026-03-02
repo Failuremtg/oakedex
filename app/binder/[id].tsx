@@ -1350,7 +1350,17 @@ export default function BinderScreen() {
           set: { id: '', name: meta.setName },
           variant: meta.variant ?? 'normal',
         }));
-        // Progressive load: show first chunk quickly, then append the rest.
+        const extras = getExtraPrintingsForName(masterPickerPokemon.name, { exact: false });
+        const quickList: (AppCardBrief & { variant: CardVariant })[] = [
+          ...filteredCombined.map(({ brief }) => ({ ...brief, variant: 'normal' as CardVariant })),
+          ...userEntries,
+          ...extras,
+        ];
+        if (!cancelled) {
+          setMasterPickerCards(quickList);
+          setMasterPickerLoading(false);
+        }
+        // Expand to full variants in background (holo, reverse, etc.)
         const CHUNK = 30;
         const variantsById: Record<string, CardVariant[]> = {};
         const editionFilter = collection.type === 'master_set' || collection.type === 'master_dex' ? collection.editionFilter : undefined;
@@ -1381,20 +1391,16 @@ export default function BinderScreen() {
               for (const variant of variants) allExpanded.push({ ...brief, variant });
             }
             if (!cancelled) {
-              const extras = getExtraPrintingsForName(masterPickerPokemon.name, { exact: false });
               setMasterPickerCards([...allExpanded, ...userEntries, ...extras]);
-              setMasterPickerLoading(false);
             }
           }
         }
         if (!cancelled) {
-          const extras = getExtraPrintingsForName(masterPickerPokemon.name, { exact: false });
           setMasterPickerCards([...allExpanded, ...userEntries, ...extras]);
         }
       } catch {
         if (!cancelled) {
-          const extras = getExtraPrintingsForName(masterPickerPokemon.name, { exact: false });
-          setMasterPickerCards(extras);
+          setMasterPickerCards(getExtraPrintingsForName(masterPickerPokemon.name, { exact: false }));
         }
       }
       if (!cancelled) setMasterPickerLoading(false);
