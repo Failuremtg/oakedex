@@ -188,6 +188,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           scopes: ['openid', 'email', 'profile'],
           responseType: 'id_token' as const,
           extraParams: { nonce: hashedNonce },
+          usePKCE: false,
         },
         'https://accounts.google.com'
       );
