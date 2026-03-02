@@ -2318,7 +2318,7 @@ export default function BinderScreen() {
                               onUploadImage={isEditMode ? handleUploadCardImage : undefined}
                             />
                             <View style={styles.cardRibbon} pointerEvents="none">
-                              <Text style={styles.cardRibbonText} numberOfLines={1}>{ue.name}</Text>
+                              <Text style={styles.cardRibbonText} numberOfLines={1}>{setLabel}</Text>
                             </View>
                             {!isCollected && <View style={styles.gridCardGreyscaleOverlay} pointerEvents="none" />}
                           </View>
@@ -2374,7 +2374,7 @@ export default function BinderScreen() {
                         />
                         <View style={styles.cardRibbon} pointerEvents="none">
                           <Text style={styles.cardRibbonText} numberOfLines={1}>
-                            {card.name}
+                            {setLabel}
                           </Text>
                         </View>
                         {!isCollected && <View style={styles.gridCardGreyscaleOverlay} pointerEvents="none" />}
@@ -3350,7 +3350,7 @@ export default function BinderScreen() {
                               onUploadImage={isEditMode ? handleUploadCardImage : undefined}
                             />
                             <View style={styles.cardRibbon} pointerEvents="none">
-                              <Text style={styles.cardRibbonText} numberOfLines={1}>{name}</Text>
+                              <Text style={styles.cardRibbonText} numberOfLines={1}>{setLabel}</Text>
                             </View>
                             {!isCollected && <View style={styles.gridCardGreyscaleOverlay} pointerEvents="none" />}
                           </View>
