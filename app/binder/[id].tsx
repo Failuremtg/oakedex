@@ -42,6 +42,7 @@ import { getSpecies, getSpeciesNameForLang } from '@/src/lib/pokeapi';
 import { getCard, getCardsByName, getCardsByIds, getCardsFull, normalizeTcgdexImageUrl, cardImageUrlFromId, LANGUAGE_OPTIONS, toAppCardBrief, type TCGdexLang } from '@/src/lib/tcgdex';
 import { CARD_VARIANTS, cardSlotKey, filterVariantsByEdition, filterVariantsBySetCardCount, filterVariantsBySetReleaseDate, getDisplayVariants, getSlotKey, getSlotKeyForEntry, getVariantLabel, getVariantsFromCard, type AppCardBrief, type CardVariant, type CustomCard, type MasterListEntry, type PokemonSummary, type Slot, type SlotCard } from '@/src/types';
 import { getDefaultCardOverrides, getCustomCards, getExcludedCardVersions, addExcludedCardVersion, cardVersionKey } from '@/src/lib/adminBinderConfig';
+import { getPokemonSpriteUrl } from '@/src/constants/collectionIcons';
 import { getExtraPrintingsForName, getExtraSetNamesById } from '@/src/lib/extraPrintings';
 import { listManualCards, manualCardsToCustomCards } from '@/src/lib/manualCards';
 import { useAuth } from '@/src/auth/AuthContext';
@@ -65,6 +66,15 @@ import {
 /** Slot key for single_pokemon: includes language so EN and DE (same card id) are separate slots. */
 function singlePokemonSlotKey(lang: string, cardId: string, variant: CardVariant): string {
   return `${lang}:${cardSlotKey(cardId, variant)}`;
+}
+
+/** Dex id for master list entry (Pokémon or custom). User entries have no dexId. */
+function getDexIdFromMasterEntry(entry: MasterListEntry): number | undefined {
+  if ('type' in entry) {
+    if (entry.type === 'custom') return entry.dexId;
+    return undefined;
+  }
+  return entry.dexId;
 }
 
 /** Slug for custom multi-Pokémon slot key (lowercase, hyphenated). */
@@ -1036,7 +1046,7 @@ export default function BinderScreen() {
   }, []);
 
   const openSetVersionPicker = useCallback(
-    (slotKey: string) => {
+    async (slotKey: string) => {
       if (!collection || collection.type !== 'by_set') return;
       const apiCard = setCards.find((c) => cardSlotKey(c.id, c.variant) === slotKey);
       const apiEntries: (AppCardBrief & { variant: CardVariant })[] = apiCard ? [{ ...apiCard, variant: apiCard.variant }] : [];
@@ -1050,11 +1060,17 @@ export default function BinderScreen() {
         variant: meta.variant ?? 'normal',
       }));
       const extras = apiCard ? getExtraPrintingsForName(apiCard.name, { exact: false }) : [];
+      const allCards = [...apiEntries, ...userCardsList, ...extras];
       setSetVersionPickerSlotKey(slotKey);
-      setSetVersionPickerCards([...apiEntries, ...userCardsList, ...extras]);
+      if (allCards.length === 1 && id) {
+        const updated = await setSlot(id, slotKey, { cardId: allCards[0].id, variant: allCards[0].variant });
+        if (updated) setCollection(updated);
+        return;
+      }
+      setSetVersionPickerCards(allCards);
       setSetVersionPickerVisible(true);
     },
-    [collection, setCards]
+    [collection, setCards, id]
   );
 
   const onSetVersionPick = useCallback(
@@ -1646,13 +1662,23 @@ export default function BinderScreen() {
                   ? 'normal'
                   : (slotCard?.variant ?? 'normal');
               const variantLabel = displayVariant !== 'normal' ? ` • ${getVariantLabel(displayVariant)}` : '';
+              const listImageUri = slotCard
+                ? (isUserCard ? userOverrideUris[slotCard.cardId] : cardImageCache[slotCard.cardId])
+                : firstPrintingCache[slotKey];
+              const listDisplayUri = listImageUri ? (normalizeTcgdexImageUrl(listImageUri) ?? listImageUri) : null;
+              const dexId = getDexIdFromMasterEntry(item);
+              const showSpriteWhenUnpicked = dexId != null;
+              const spriteUri = showSpriteWhenUnpicked ? getPokemonSpriteUrl(dexId) : null;
+              const showCardInList = isCollected && !isEditMode;
               return (
                 <Pressable
                   style={({ pressed }) => [styles.listRow, pressed && styles.rowPressed]}
                   onPress={() => {
-                    const imageUri = slotCard ? (isUserCard ? userOverrideUris[slotCard.cardId] : cardImageCache[slotCard.cardId]) : firstPrintingCache[slotKey];
+                    const overlayImageUri =
+                      listDisplayUri ??
+                      (slotCard ? cardImageUrlFromId(LANG, slotCard.cardId, customCardByCardId[slotCard.cardId]?.localId) : null);
                     openCardOverlay({
-                      imageUri: imageUri ?? null,
+                      imageUri: overlayImageUri ?? null,
                       cardName: item.name,
                       setLabel,
                       collectorNumber: collectorNum,
@@ -1664,6 +1690,23 @@ export default function BinderScreen() {
                   }}
                   onLongPress={() => slotCard && handleLongPressCard(slotKey, slotCard.cardId, slotCard.variant)}
                 >
+                  {showCardInList && slotCard ? (
+                    <CachedImage
+                      remoteUri={listDisplayUri ?? undefined}
+                      style={styles.masterListSprite}
+                      resizeMode="contain"
+                      cardId={slotCard.cardId}
+                      overrideUri={userOverrideUris[slotCard.cardId]}
+                    />
+                  ) : showSpriteWhenUnpicked && spriteUri ? (
+                    <Image
+                      source={{ uri: spriteUri }}
+                      style={[styles.masterListSprite, !isCollected && styles.masterSpriteSilhouette]}
+                      resizeMode="contain"
+                    />
+                  ) : (
+                    <View style={styles.masterListSprite} />
+                  )}
                   <Text style={styles.listRowName} numberOfLines={2}>{item.name}</Text>
                   <Text style={styles.listRowMeta} numberOfLines={2}>
                     {setLabel}{collectorNum !== NO_VERSION_SELECTED ? ` #${collectorNum}` : ''}{variantLabel}
@@ -1706,6 +1749,10 @@ export default function BinderScreen() {
                 ? 'normal'
                 : (slotCard?.variant ?? 'normal');
             const variantLabelRibbon = displayVariant !== 'normal' ? ` • ${getVariantLabel(displayVariant)}` : '';
+            const dexId = getDexIdFromMasterEntry(item);
+            const showSpriteWhenUnpicked = dexId != null;
+            const spriteUri = showSpriteWhenUnpicked ? getPokemonSpriteUrl(dexId) : null;
+            const showCardInGrid = isCollected && !isEditMode;
             return (
               <Pressable
                 style={({ pressed }) => [
@@ -1714,9 +1761,12 @@ export default function BinderScreen() {
                   pressed && styles.rowPressed,
                 ]}
                 onPress={() => {
+                  const overlayImageUri =
+                    displayUri ??
+                    (slotCard ? cardImageUrlFromId(LANG, slotCard.cardId, customCardByCardId[slotCard.cardId]?.localId) : null);
                   openCardOverlay({
-                    imageUri: displayUri,
-                    cardName: item.name,
+                    imageUri: overlayImageUri ?? null,
+                    cardName: item.name + (displayVariant !== 'normal' ? ` (${getVariantLabel(displayVariant)})` : ''),
                     setLabel,
                     collectorNumber: collectorNum,
                     cardId: slotCard?.cardId,
@@ -1728,20 +1778,41 @@ export default function BinderScreen() {
                 onLongPress={() => slotCard && handleLongPressCard(slotKey, slotCard.cardId, slotCard.variant)}
               >
                 <View style={styles.gridCardInner}>
-                  <CachedImage
-                    remoteUri={displayUri}
-                    style={[styles.gridCardImage, !isCollected && styles.gridCardImageUnselected]}
-                    resizeMode="contain"
-                    cardId={slotCard?.cardId}
-                    overrideUri={slotCard ? userOverrideUris[slotCard.cardId] : undefined}
-                    onUploadImage={slotCard ? handleUploadCardImage : undefined}
-                  />
+                  {showCardInGrid ? (
+                    <CachedImage
+                      remoteUri={displayUri}
+                      style={[styles.gridCardImage, !isCollected && styles.gridCardImageUnselected]}
+                      resizeMode="contain"
+                      cardId={slotCard?.cardId}
+                      overrideUri={slotCard ? userOverrideUris[slotCard.cardId] : undefined}
+                      onUploadImage={slotCard ? handleUploadCardImage : undefined}
+                    />
+                  ) : showSpriteWhenUnpicked && spriteUri ? (
+                    <Image
+                      source={{ uri: spriteUri }}
+                      style={[
+                        styles.gridCardImage,
+                        !isCollected && styles.gridCardImageUnselected,
+                        !isCollected && styles.masterSpriteSilhouette,
+                      ]}
+                      resizeMode="contain"
+                    />
+                  ) : (
+                    <CachedImage
+                      remoteUri={displayUri}
+                      style={[styles.gridCardImage, !isCollected && styles.gridCardImageUnselected]}
+                      resizeMode="contain"
+                      cardId={slotCard?.cardId}
+                      overrideUri={slotCard ? userOverrideUris[slotCard.cardId] : undefined}
+                      onUploadImage={slotCard ? handleUploadCardImage : undefined}
+                    />
+                  )}
                   <View style={styles.cardRibbon} pointerEvents="none">
-                    <Text style={styles.cardRibbonText} numberOfLines={2}>
-                      {setLabel}{collectorNum !== NO_VERSION_SELECTED ? ` • #${collectorNum}` : ''}{variantLabelRibbon}
+                    <Text style={styles.cardRibbonText} numberOfLines={1}>
+                      {item.name}
                     </Text>
                   </View>
-                  {!isCollected && <View style={styles.gridCardGreyscaleOverlay} pointerEvents="none" />}
+                  {!isCollected && !(showSpriteWhenUnpicked && spriteUri) && <View style={styles.gridCardGreyscaleOverlay} pointerEvents="none" />}
                 </View>
               </Pressable>
             );
@@ -1760,9 +1831,9 @@ export default function BinderScreen() {
                 <>
                   <View style={styles.cardOverlayCardRow}>
                     <View style={styles.cardOverlayCardWrap}>
-                      {cardOverlay.imageUri ? (
+                      {cardOverlay.imageUri || cardOverlay.cardId ? (
                         <CachedImage
-                          remoteUri={cardOverlay.imageUri}
+                          remoteUri={cardOverlay.imageUri ?? undefined}
                           style={styles.cardOverlayImage}
                           resizeMode="contain"
                           cardId={cardOverlay.cardId}
@@ -2247,7 +2318,7 @@ export default function BinderScreen() {
                               onUploadImage={isEditMode ? handleUploadCardImage : undefined}
                             />
                             <View style={styles.cardRibbon} pointerEvents="none">
-                              <Text style={styles.cardRibbonText} numberOfLines={2}>{setLabel}</Text>
+                              <Text style={styles.cardRibbonText} numberOfLines={1}>{ue.name}</Text>
                             </View>
                             {!isCollected && <View style={styles.gridCardGreyscaleOverlay} pointerEvents="none" />}
                           </View>
@@ -2302,8 +2373,8 @@ export default function BinderScreen() {
                           onUploadImage={handleUploadCardImage}
                         />
                         <View style={styles.cardRibbon} pointerEvents="none">
-                          <Text style={styles.cardRibbonText} numberOfLines={2}>
-                            {setLabel} • #{collectorNum}{variantLabel}
+                          <Text style={styles.cardRibbonText} numberOfLines={1}>
+                            {card.name}
                           </Text>
                         </View>
                         {!isCollected && <View style={styles.gridCardGreyscaleOverlay} pointerEvents="none" />}
@@ -2398,9 +2469,9 @@ export default function BinderScreen() {
                 <>
                   <View style={styles.cardOverlayCardRow}>
                     <View style={styles.cardOverlayCardWrap}>
-                      {cardOverlay.imageUri ? (
+                      {cardOverlay.imageUri || cardOverlay.cardId ? (
                         <CachedImage
-                          remoteUri={cardOverlay.imageUri}
+                          remoteUri={cardOverlay.imageUri ?? undefined}
                           style={styles.cardOverlayImage}
                           resizeMode="contain"
                           cardId={cardOverlay.cardId}
@@ -2639,8 +2710,8 @@ export default function BinderScreen() {
                             onUploadImage={handleUploadCardImage}
                           />
                           <View style={styles.cardRibbon} pointerEvents="none">
-                            <Text style={styles.cardRibbonText} numberOfLines={2}>
-                              {setLabel} • #{collectorNum}{variantLabel}
+                            <Text style={styles.cardRibbonText} numberOfLines={1}>
+                              {displayName}
                             </Text>
                           </View>
                           {!isCollected && <View style={styles.gridCardGreyscaleOverlay} pointerEvents="none" />}
@@ -2749,9 +2820,9 @@ export default function BinderScreen() {
                 <>
                   <View style={styles.cardOverlayCardRow}>
                     <View style={styles.cardOverlayCardWrap}>
-                      {cardOverlay.imageUri ? (
+                      {cardOverlay.imageUri || cardOverlay.cardId ? (
                         <CachedImage
-                          remoteUri={cardOverlay.imageUri}
+                          remoteUri={cardOverlay.imageUri ?? undefined}
                           style={styles.cardOverlayImage}
                           resizeMode="contain"
                           cardId={cardOverlay.cardId}
@@ -3279,7 +3350,7 @@ export default function BinderScreen() {
                               onUploadImage={isEditMode ? handleUploadCardImage : undefined}
                             />
                             <View style={styles.cardRibbon} pointerEvents="none">
-                              <Text style={styles.cardRibbonText} numberOfLines={2}>{setLabel} • #{collectorNum}{variantLabel}</Text>
+                              <Text style={styles.cardRibbonText} numberOfLines={1}>{name}</Text>
                             </View>
                             {!isCollected && <View style={styles.gridCardGreyscaleOverlay} pointerEvents="none" />}
                           </View>
@@ -3522,12 +3593,17 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(60,60,60,0.5)',
   },
   gridCardImage: {
-    width: '100%',
-    height: '100%',
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: undefined,
+    height: undefined,
     borderRadius: 8,
   },
   gridCardImageUnselected: {
-    opacity: 0.45,
+    opacity: 0.65,
   },
   gridCardGreyscaleOverlay: {
     position: 'absolute',
@@ -3535,9 +3611,18 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(100,100,100,0.72)',
+    backgroundColor: 'rgba(80,80,80,0.5)',
     borderRadius: 8,
     zIndex: 1,
+  },
+  /** Master binder: unpicked Pokémon shown as grey silhouette (sprite with tint). */
+  masterSpriteSilhouette: {
+    tintColor: 'rgba(150,150,150,0.92)',
+  },
+  masterListSprite: {
+    width: 44,
+    height: 44,
+    borderRadius: 6,
   },
   gridCardPlaceholder: {
     width: '100%',
