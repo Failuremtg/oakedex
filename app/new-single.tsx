@@ -21,10 +21,8 @@ import { createCollection, loadCollectionsForDisplay } from '@/src/lib/collectio
 import { BINDER_COLOR_OPTIONS } from '@/src/constants/binderColors';
 import { LANGUAGE_OPTIONS, type TCGdexLang } from '@/src/lib/tcgdex';
 import { getSpeciesWithCache } from '@/src/lib/cardDataCache';
+import { getPokemonSpriteUrl } from '@/src/constants/collectionIcons';
 import type { EditionFilter, PokemonSummary } from '@/src/types';
-
-const SPRITE_URL = (dexId: number) =>
-  `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${dexId}.png`;
 
 const NUM_COLUMNS = 3;
 
@@ -48,6 +46,7 @@ export default function NewSingleScreen() {
   const [selectedLanguages, setSelectedLanguages] = useState<TCGdexLang[]>(['en']);
   const [editionFilter, setEditionFilter] = useState<EditionFilter>('all');
   const [selectedColorId, setSelectedColorId] = useState<string | null>(null);
+  const [spriteErrors, setSpriteErrors] = useState<Set<number>>(new Set());
 
   useFocusEffect(
     useCallback(() => {
@@ -115,6 +114,10 @@ export default function NewSingleScreen() {
 
   const closeModal = useCallback(() => setSelectedPokemon(null), []);
 
+  const markSpriteError = useCallback((dexId: number) => {
+    setSpriteErrors((prev) => (prev.has(dexId) ? prev : new Set(prev).add(dexId)));
+  }, []);
+
   if (loading) {
     return (
       <View style={styles.container}>
@@ -140,23 +143,31 @@ export default function NewSingleScreen() {
         numColumns={1}
         renderItem={({ item: row }) => (
           <View style={styles.gridRow}>
-            {row.map((item) => (
-              <Pressable
-                key={item.dexId}
-                style={({ pressed }) => [styles.gridCell, pressed && styles.gridCellPressed]}
-                onPress={() => setSelectedPokemon(item)}
-                disabled={creating}
-              >
-                <Image
-                  source={{ uri: SPRITE_URL(item.dexId) }}
-                  style={styles.sprite}
-                  resizeMode="contain"
-                />
-                <Text style={styles.pokemonName} numberOfLines={2}>
-                  {item.name}
-                </Text>
-              </Pressable>
-            ))}
+            {row.map((item) => {
+              const spriteFailed = spriteErrors.has(item.dexId);
+              return (
+                <Pressable
+                  key={item.dexId}
+                  style={({ pressed }) => [styles.gridCell, pressed && styles.gridCellPressed]}
+                  onPress={() => setSelectedPokemon(item)}
+                  disabled={creating}
+                >
+                  {spriteFailed ? (
+                    <View style={[styles.sprite, styles.spritePlaceholder]} />
+                  ) : (
+                    <Image
+                      source={{ uri: getPokemonSpriteUrl(item.dexId) }}
+                      style={styles.sprite}
+                      resizeMode="contain"
+                      onError={() => markSpriteError(item.dexId)}
+                    />
+                  )}
+                  <Text style={styles.pokemonName} numberOfLines={2}>
+                    {item.name}
+                  </Text>
+                </Pressable>
+              );
+            })}
             {row.length < NUM_COLUMNS &&
               Array.from({ length: NUM_COLUMNS - row.length }).map((_, i) => (
                 <View key={`pad-${i}`} style={styles.gridCell} />
@@ -194,11 +205,16 @@ export default function NewSingleScreen() {
               >
               <>
                 <View style={styles.modalHeader}>
-                  <Image
-                    source={{ uri: SPRITE_URL(selectedPokemon.dexId) }}
-                    style={styles.modalSprite}
-                    resizeMode="contain"
-                  />
+                  {spriteErrors.has(selectedPokemon.dexId) ? (
+                    <View style={[styles.modalSprite, styles.spritePlaceholder]} />
+                  ) : (
+                    <Image
+                      source={{ uri: getPokemonSpriteUrl(selectedPokemon.dexId) }}
+                      style={styles.modalSprite}
+                      resizeMode="contain"
+                      onError={() => markSpriteError(selectedPokemon.dexId)}
+                    />
+                  )}
                   <Text style={styles.modalTitle}>{selectedPokemon.name} binder</Text>
                 </View>
 
@@ -349,6 +365,7 @@ const styles = StyleSheet.create({
   },
   gridCellPressed: { opacity: 0.8 },
   sprite: { width: 72, height: 72 },
+  spritePlaceholder: { backgroundColor: 'rgba(255,255,255,0.08)' },
   pokemonName: { fontSize: 12, color: '#fff', marginTop: 6, textAlign: 'center' },
   modalBackdrop: {
     flex: 1,

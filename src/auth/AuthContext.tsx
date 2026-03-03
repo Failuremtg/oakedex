@@ -203,7 +203,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       const idToken = (result.params as { id_token?: string }).id_token;
       if (!idToken) {
-        setError('Google did not return a token. Check that ' + redirectUri + ' is in your Google Cloud Console authorized redirect URIs.');
+        setError(
+          'Google sign-in did not complete. For an installed app (AAB/APK): add ' +
+            redirectUri +
+            ' to Google Cloud Console → Credentials → your Web client → Authorized redirect URIs. Also ensure EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID is set in EAS and you rebuilt the app.'
+        );
         return null;
       }
       const credential = GoogleAuthProvider.credential(idToken);

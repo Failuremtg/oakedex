@@ -69,7 +69,7 @@ export default function CollectionTabScreen() {
   const emptyState = (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={[styles.content, styles.emptyStateContent]}
+      contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
     >
       <Image
@@ -77,35 +77,36 @@ export default function CollectionTabScreen() {
         style={styles.logo}
         resizeMode="contain"
       />
-      <View style={styles.emptyStateIconWrap}>
-        <View style={styles.emptyStateBinderWrap}>
-          <BinderCover
-            width={BINDER_THUMB_WIDTH * 1.5}
-            height={BINDER_THUMB_HEIGHT * 1.5}
-            color="#6b6b6b"
-            subtleRings
-          />
-        </View>
-        <View style={styles.emptyStateStickerWrap}>
-          <FontAwesome name="plus" size={40} color="rgba(255,255,255,0.9)" />
-        </View>
-      </View>
-      <Text style={styles.emptyStateTitle}>Create a binder</Text>
-      <Text style={styles.emptyStateHint}>
-        Add a Single Pokémon binder, Master Set, or set collection to get started.
-      </Text>
       <Pressable
-        style={({ pressed }) => [styles.emptyStateButton, pressed && styles.cardPressed]}
+        style={({ pressed }) => [styles.firstBinderRow, pressed && styles.cardPressed]}
         onPress={() => {
           hapticLight();
           if (!user) {
             router.push('/login');
             return;
           }
-          router.push('/new-single');
+          router.push('/(tabs)/binder?add=1');
         }}
       >
-        <Text style={styles.emptyStateButtonText}>Add your first collection</Text>
+        <View style={styles.firstBinderCard}>
+          <Text style={styles.firstBinderTitle}>Create your first binder</Text>
+          <Text style={styles.firstBinderSubtitle}>Tap to choose type</Text>
+        </View>
+        <View style={styles.firstBinderRightColumn}>
+          <View style={styles.firstBinderWithSticker}>
+            <View style={styles.firstBinderThumbWrap}>
+              <BinderCover
+                width={BINDER_THUMB_WIDTH}
+                height={BINDER_THUMB_HEIGHT}
+                color="#6b6b6b"
+                subtleRings
+              />
+            </View>
+            <View style={styles.firstBinderStickerWrap}>
+              <FontAwesome name="plus" size={36} color="rgba(255,255,255,0.9)" />
+            </View>
+          </View>
+        </View>
       </Pressable>
     </ScrollView>
   );
@@ -202,47 +203,49 @@ const styles = StyleSheet.create({
     width: 240,
     marginBottom: 24,
   },
-  emptyStateContent: {
-    flexGrow: 1,
+  firstBinderRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingTop: 24,
-    paddingHorizontal: 24,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
   },
-  emptyStateIconWrap: {
-    marginTop: 20,
-    marginBottom: 24,
+  firstBinderCard: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  firstBinderTitle: { fontSize: 18, fontWeight: '600', color: 'rgba(255,255,255,0.9)' },
+  firstBinderSubtitle: { fontSize: 13, opacity: 0.7, color: '#fff', marginTop: 2 },
+  firstBinderRightColumn: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
+  },
+  firstBinderWithSticker: {
+    width: BINDER_THUMB_WIDTH,
+    height: BINDER_THUMB_HEIGHT,
     position: 'relative',
-    width: BINDER_THUMB_WIDTH * 1.5,
-    height: BINDER_THUMB_HEIGHT * 1.5,
+  },
+  firstBinderThumbWrap: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  emptyStateBinderWrap: {
-    position: 'absolute',
     transform: [{ perspective: 400 }, { rotateY: '-24deg' }],
   },
-  emptyStateStickerWrap: {
+  firstBinderStickerWrap: {
     position: 'absolute',
+    left: 0,
+    top: 0,
+    right: 0,
+    bottom: 0,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  emptyStateTitle: { fontSize: 20, fontWeight: '700', color: '#fff', marginBottom: 8, textAlign: 'center' },
-  emptyStateHint: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.65)',
-    textAlign: 'center',
-    marginBottom: 28,
-    paddingHorizontal: 16,
-  },
-  emptyStateButton: {
-    paddingVertical: 14,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-    backgroundColor: 'rgba(76, 175, 80, 0.5)',
-    alignItems: 'center',
-    minWidth: 220,
-  },
-  emptyStateButtonText: { fontSize: 16, color: '#fff', fontWeight: '600' },
   card: {
     backgroundColor: 'rgba(255,255,255,0.08)',
     borderRadius: 12,

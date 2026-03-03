@@ -163,6 +163,11 @@ export default function LoginScreen() {
           </Text>
         </View>
       )}
+      {GOOGLE_SIGNIN_CONFIGURED && (
+        <Text style={[styles.hintText, styles.googleRedirectHint]}>
+          If Google sign-in fails on your installed build, add this redirect URI in Google Cloud Console → Credentials → your Web client → Authorized redirect URIs: https://auth.expo.io/@failuremtg/oakedex — then ensure EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID is set in EAS and rebuild.
+        </Text>
+      )}
 
       <Text style={styles.signUpPrompt}>
         Don&apos;t have an account?{' '}
@@ -208,6 +213,7 @@ const styles = StyleSheet.create({
   socialButtonDisabled: { opacity: 0.6 },
   socialButtonTextMuted: { color: TEXT_SECONDARY },
   googleHintBlock: { marginTop: 4, marginBottom: 4, marginHorizontal: 8 },
+  googleRedirectHint: { marginTop: 6, marginHorizontal: 8 },
   hintText: { color: TEXT_SECONDARY, fontSize: 12 },
   hintBold: { fontWeight: '600', color: 'rgba(255,255,255,0.9)' },
   buttonDisabled: { opacity: 0.6 },
