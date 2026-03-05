@@ -101,7 +101,16 @@ export default function LoginScreen() {
         <Text style={styles.forgotLinkText}>Forgot password?</Text>
       </Pressable>
 
-      {!!error && <Text style={styles.errorText}>{error}</Text>}
+      {!!error && (
+        <Pressable
+          style={styles.errorBanner}
+          onPress={() => clearError()}
+        >
+          <Text style={styles.errorBannerLabel}>Sign-in message</Text>
+          <Text style={styles.errorBannerText} selectable>{error}</Text>
+          <Text style={styles.errorBannerDismiss}>Tap to dismiss</Text>
+        </Pressable>
+      )}
 
       <Pressable
         style={[styles.primaryButton, loading && styles.primaryButtonDisabled]}
@@ -163,12 +172,6 @@ export default function LoginScreen() {
           </Text>
         </View>
       )}
-      {GOOGLE_SIGNIN_CONFIGURED && (
-        <Text style={[styles.hintText, styles.googleRedirectHint]}>
-          If Google sign-in fails on your installed build, add this redirect URI in Google Cloud Console → Credentials → your Web client → Authorized redirect URIs: https://auth.expo.io/@failuremtg/oakedex — then ensure EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID is set in EAS and rebuild.
-        </Text>
-      )}
-
       <Text style={styles.signUpPrompt}>
         Don&apos;t have an account?{' '}
         <Link href="/signup" asChild>
@@ -213,7 +216,6 @@ const styles = StyleSheet.create({
   socialButtonDisabled: { opacity: 0.6 },
   socialButtonTextMuted: { color: TEXT_SECONDARY },
   googleHintBlock: { marginTop: 4, marginBottom: 4, marginHorizontal: 8 },
-  googleRedirectHint: { marginTop: 6, marginHorizontal: 8 },
   hintText: { color: TEXT_SECONDARY, fontSize: 12 },
   hintBold: { fontWeight: '600', color: 'rgba(255,255,255,0.9)' },
   buttonDisabled: { opacity: 0.6 },
@@ -246,5 +248,29 @@ const styles = StyleSheet.create({
   signUpLink: { color: primary, textDecorationLine: 'underline', fontWeight: '600' },
   forgotLink: { alignSelf: 'flex-end', marginTop: -4, marginBottom: 4 },
   forgotLinkText: { color: primary, fontSize: 14, textDecorationLine: 'underline', fontWeight: '500' },
-  errorText: { color: '#ef4444', fontSize: 14 },
+  errorBanner: {
+    backgroundColor: 'rgba(239, 68, 68, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.35)',
+    borderRadius: 10,
+    padding: 12,
+    marginTop: 4,
+    marginBottom: 4,
+  },
+  errorBannerLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.85)',
+    marginBottom: 4,
+  },
+  errorBannerText: {
+    fontSize: 15,
+    color: '#fca5a5',
+    lineHeight: 22,
+  },
+  errorBannerDismiss: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.5)',
+    marginTop: 6,
+  },
 });

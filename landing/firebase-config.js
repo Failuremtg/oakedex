@@ -3,7 +3,7 @@
  * Same config as EXPO_PUBLIC_FIREBASE_* in .env.
  */
 const FIREBASE_CONFIG = {
-  apiKey: "AIzaSyDJEsMub1NFQX-3y6sVqi5uh9iLd52o1JE",
+  apiKey: "AIzaSyDJEsMub1NFQX-3y6sVqi5uh9iLd5201JE",
   authDomain: "oakedex.firebaseapp.com",
   projectId: "oakedex",
   storageBucket: "oakedex.firebasestorage.app",

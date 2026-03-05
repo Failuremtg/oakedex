@@ -18,6 +18,10 @@ const FIREBASE_AUTH_MESSAGES: Record<string, string> = {
   'auth/account-exists-with-different-credential': 'An account already exists with this email using a different sign-in method. Try signing in with that method.',
   'auth/credential-already-in-use': 'This sign-in method is already linked to another account.',
   'auth/requires-recent-login': 'Please sign out and sign in again to continue.',
+  'auth/invalid-api-key': 'Please update the app to the latest version and try again.',
+  'auth/api-key-not-valid': 'Please update the app to the latest version and try again.',
+  'auth/configuration-not-found': 'Sign-in isn’t set up for this app yet. Try again after updating.',
+  'auth/internal-error': 'Something went wrong on our side. Please try again in a moment.',
 };
 
 export function getFriendlyAuthErrorMessage(error: unknown): string {
@@ -26,12 +30,15 @@ export function getFriendlyAuthErrorMessage(error: unknown): string {
   if (code && FIREBASE_AUTH_MESSAGES[code]) {
     return FIREBASE_AUTH_MESSAGES[code];
   }
-  const msg = err?.message ?? '';
-  if (typeof msg === 'string' && msg.includes('auth/')) {
-    const match = msg.match(/auth\/[a-z-]+/);
+  const msg = String(err?.message ?? '');
+  if (msg.includes('auth/')) {
+    const match = msg.match(/auth\/[a-z0-9-]+/);
     if (match && FIREBASE_AUTH_MESSAGES[match[0]]) {
       return FIREBASE_AUTH_MESSAGES[match[0]];
     }
   }
-  return 'Something went wrong. Please try again.';
+  if (msg.toLowerCase().includes('network') || msg.toLowerCase().includes('connection')) {
+    return 'Check your internet connection and try again.';
+  }
+  return 'We couldn’t sign you in. Check your email and password, and your connection, then try again.';
 }
