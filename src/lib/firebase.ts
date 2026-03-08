@@ -1,9 +1,7 @@
 /**
  * Firebase – Auth and Firestore.
- * Add your config from Firebase Console → Project settings → Your apps.
- * For Expo, use app.config.js extra or env (e.g. EXPO_PUBLIC_FIREBASE_*).
- * On native, Auth uses React Native persistence (AsyncStorage) so login survives app restarts until the user signs out.
- * Config is read from process.env first, then from Constants.expoConfig.extra.firebase (baked in by app.config.js).
+ * Config is read from Constants.expoConfig.extra.firebase first (baked in at build time by app.config.js),
+ * then from process.env, so the built app always uses the config that was embedded when EAS built it.
  */
 
 import { getApp, getApps, initializeApp, type FirebaseApp } from 'firebase/app';
@@ -15,13 +13,22 @@ import Constants from 'expo-constants';
 
 const extraFirebase = (Constants.expoConfig as { extra?: { firebase?: Record<string, string> } } | null)?.extra?.firebase;
 
+function getConfigValue(
+  key: keyof NonNullable<typeof extraFirebase>,
+  envValue: string | undefined
+): string {
+  const fromExtra = extraFirebase?.[key];
+  const fromEnv = envValue ?? '';
+  return (fromExtra && String(fromExtra).trim() !== '') ? String(fromExtra) : fromEnv;
+}
+
 const firebaseConfig = {
-  apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY ?? extraFirebase?.apiKey ?? '',
-  authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN ?? extraFirebase?.authDomain ?? '',
-  projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID ?? extraFirebase?.projectId ?? '',
-  storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET ?? extraFirebase?.storageBucket ?? '',
-  messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID ?? extraFirebase?.messagingSenderId ?? '',
-  appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID ?? extraFirebase?.appId ?? '',
+  apiKey: getConfigValue('apiKey', process.env.EXPO_PUBLIC_FIREBASE_API_KEY),
+  authDomain: getConfigValue('authDomain', process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN),
+  projectId: getConfigValue('projectId', process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID),
+  storageBucket: getConfigValue('storageBucket', process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET),
+  messagingSenderId: getConfigValue('messagingSenderId', process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID),
+  appId: getConfigValue('appId', process.env.EXPO_PUBLIC_FIREBASE_APP_ID),
 };
 
 function getFirebaseApp(): FirebaseApp | null {

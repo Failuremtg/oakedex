@@ -141,6 +141,8 @@ Then run a **new** build. The new APK will have Firebase config and login will w
 npx eas build --platform android --profile production
 ```
 
+**If login still says "Please update the app" on the latest build:** Firebase may be rejecting the API key due to **API key restrictions**. In [Google Cloud Console](https://console.cloud.google.com) → **APIs & Services** → **Credentials** → open the **API key** used by your Firebase Web app (same project). If it has **Application restrictions** set to "Android apps", ensure your app’s **package name** (`com.oakedex.app`) and the **SHA-1** of the keystore used to sign the build are listed. For EAS builds, get the SHA-1 from [expo.dev](https://expo.dev) → your project → **Credentials** → Android. Add that SHA-1 (and package name) to the API key’s Android restrictions, or temporarily set the key to "None" to test. Then create a new build.
+
 To build an **APK** instead of an AAB (same production env/Firebase):
 
 ```bash
