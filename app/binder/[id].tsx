@@ -1674,7 +1674,8 @@ export default function BinderScreen() {
               const listDisplayUri = listImageUri ? (normalizeTcgdexImageUrl(listImageUri) ?? listImageUri) : null;
               const dexId = getDexIdFromMasterEntry(item);
               const showSpriteWhenUnpicked = dexId != null;
-              const spriteUri = showSpriteWhenUnpicked ? getPokemonSpriteUrl(dexId) : null;
+              const form = 'form' in item ? item.form : undefined;
+              const spriteUri = showSpriteWhenUnpicked ? getPokemonSpriteUrl(dexId, form) : null;
               const showCardInList = isCollected && !isEditMode;
               return (
                 <Pressable
@@ -1757,7 +1758,8 @@ export default function BinderScreen() {
             const variantLabelRibbon = displayVariant !== 'normal' ? ` • ${getVariantLabel(displayVariant)}` : '';
             const dexId = getDexIdFromMasterEntry(item);
             const showSpriteWhenUnpicked = dexId != null;
-            const spriteUri = showSpriteWhenUnpicked ? getPokemonSpriteUrl(dexId) : null;
+            const form = 'form' in item ? item.form : undefined;
+            const spriteUri = showSpriteWhenUnpicked ? getPokemonSpriteUrl(dexId, form) : null;
             const showCardInGrid = isCollected && !isEditMode;
             return (
               <Pressable
@@ -1783,7 +1785,7 @@ export default function BinderScreen() {
                 }}
                 onLongPress={() => slotCard && handleLongPressCard(slotKey, slotCard.cardId, slotCard.variant)}
               >
-                <View style={styles.gridCardInner}>
+                <View style={[styles.gridCardInner, { width: gridCardLayout.width - 8, height: gridCardLayout.height - 8 }]}>
                   {showCardInGrid ? (
                     <CachedImage
                       remoteUri={displayUri}
@@ -2314,7 +2316,7 @@ export default function BinderScreen() {
                           }}
                           onLongPress={() => handleLongPressCard(ue.slotKey, ue.cardId, 'normal')}
                         >
-                          <View style={styles.gridCardInner}>
+                          <View style={[styles.gridCardInner, { width: gridCardLayout.width - 8, height: gridCardLayout.height - 8 }]}>
                             <CachedImage
                               remoteUri={imageUri ?? undefined}
                               style={[styles.gridCardImage, !isCollected && styles.gridCardImageUnselected]}
@@ -2369,7 +2371,7 @@ export default function BinderScreen() {
                       }}
                       onLongPress={() => handleLongPressCard(slotKey, card.id, card.variant)}
                     >
-                      <View style={styles.gridCardInner}>
+                      <View style={[styles.gridCardInner, { width: gridCardLayout.width - 8, height: gridCardLayout.height - 8 }]}>
                         <CachedImage
                           remoteUri={card.image ? (normalizeTcgdexImageUrl(card.image) ?? card.image) : null}
                           style={[styles.gridCardImage, !isCollected && styles.gridCardImageUnselected]}
@@ -2706,7 +2708,7 @@ export default function BinderScreen() {
                         }}
                         onLongPress={() => handleLongPressCard(slotKey, slotCard?.cardId ?? card.id, slotCard?.variant ?? card.variant)}
                       >
-                        <View style={styles.gridCardInner}>
+                        <View style={[styles.gridCardInner, { width: gridCardLayout.width - 8, height: gridCardLayout.height - 8 }]}>
                           <CachedImage
                             remoteUri={imageUri ?? undefined}
                             style={[styles.gridCardImage, !isCollected && styles.gridCardImageUnselected]}
@@ -3035,7 +3037,7 @@ export default function BinderScreen() {
                         }}
                         onLongPress={() => slotCard && handleLongPressCard(slot.key, slotCard.cardId, slotCard.variant)}
                       >
-                        <View style={styles.gridCardInner}>
+                        <View style={[styles.gridCardInner, { width: gridCardLayout.width - 8, height: gridCardLayout.height - 8 }]}>
                           <CachedImage
                             remoteUri={imageUri ?? undefined}
                             style={[styles.gridCardImage, !isCollected && styles.gridCardImageUnselected]}
@@ -3346,7 +3348,7 @@ export default function BinderScreen() {
                           }}
                           onLongPress={() => slotCard && handleLongPressCard(slotKey, slotCard.cardId, slotCard.variant)}
                         >
-                          <View style={styles.gridCardInner}>
+                          <View style={[styles.gridCardInner, { width: gridCardLayout.width - 8, height: gridCardLayout.height - 8 }]}>
                             <CachedImage
                               remoteUri={imageUri ?? undefined}
                               style={[styles.gridCardImage, !isCollected && styles.gridCardImageUnselected]}

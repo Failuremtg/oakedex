@@ -2,7 +2,7 @@
   "expo": {
     "name": "oakedex",
     "slug": "oakedex",
-    "version": "0.5.4",
+    "version": "0.5.8",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "oakedex",
@@ -16,7 +16,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.oakedex.app",
-      "buildNumber": "6",
+      "buildNumber": "10",
       "usesAppleSignIn": true,
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
@@ -30,7 +30,7 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.failuremtg.oakedex",
-      "versionCode": 7
+      "versionCode": 11
     },
     "web": {
       "bundler": "metro",
@@ -39,7 +39,13 @@
     },
     "plugins": [
       "expo-router",
-      "expo-apple-authentication"
+      "expo-apple-authentication",
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.154159149234-cttv7um4q5uook5to1ol0fsk85hqaut5"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

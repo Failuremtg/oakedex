@@ -20,14 +20,17 @@ import { getFirebaseAuth } from '@/src/lib/firebase';
 import { setSyncUserId } from '@/src/lib/syncUser';
 import { getFriendlyAuthErrorMessage } from '@/src/auth/authErrors';
 
-// Native Google sign-in (expo-auth-session) – optional to avoid breaking web
-let AuthSession: typeof import('expo-auth-session') | null = null;
+const NOT_CONFIGURED_MSG = 'Sign-in is not available on this app. (NO_FIREBASE_CONFIG)';
+const GOOGLE_WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ?? '';
+
+// Native Google sign-in (@react-native-google-signin/google-signin) – optional to avoid breaking web
+let GoogleSignin: typeof import('@react-native-google-signin/google-signin').GoogleSignin | null = null;
 let AppleAuth: typeof import('expo-apple-authentication') | null = null;
 if (Platform.OS !== 'web') {
   try {
-    AuthSession = require('expo-auth-session');
+    GoogleSignin = require('@react-native-google-signin/google-signin').GoogleSignin;
   } catch {
-    // expo-auth-session not installed
+    // @react-native-google-signin/google-signin not installed
   }
   try {
     AppleAuth = require('expo-apple-authentication');
@@ -36,8 +39,13 @@ if (Platform.OS !== 'web') {
   }
 }
 
-const NOT_CONFIGURED_MSG = 'Sign-in is not available on this app.';
-const GOOGLE_WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ?? '';
+// Configure Google Sign-In once at module load (before any component mounts)
+if (GoogleSignin && GOOGLE_WEB_CLIENT_ID) {
+  GoogleSignin.configure({
+    webClientId: GOOGLE_WEB_CLIENT_ID,
+    iosClientId: '154159149234-cttv7um4q5uook5to1ol0fsk85hqaut5.apps.googleusercontent.com',
+  });
+}
 
 type AuthState = {
   user: User | null;
@@ -164,55 +172,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const cred = await signInWithPopup(auth, new GoogleAuthProvider());
         return cred;
       }
-      // Native: use Expo auth proxy so redirect URI is always
-      // https://auth.expo.io/@failuremtg/oakedex — add this in Google Cloud Console
-      // → APIs & Services → Credentials → your Web OAuth client → Authorized redirect URIs.
-      if (!AuthSession || !GOOGLE_WEB_CLIENT_ID) {
+      if (!GoogleSignin || !GOOGLE_WEB_CLIENT_ID) {
         setError('Google sign-in is not set up. Set EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID in .env.');
         return null;
       }
-      // Hardcode the Expo proxy URI — makeRedirectUri({ useProxy }) was removed in expo-auth-session v7
-      const redirectUri = 'https://auth.expo.io/@failuremtg/oakedex';
-
-      // Nonce is required by Google for id_token implicit flow (same pattern as Apple sign-in)
-      const rawNonce = Math.random().toString(36).slice(2) + Date.now().toString(36);
-      const hashedNonce = await Crypto.digestStringAsync(
-        Crypto.CryptoDigestAlgorithm.SHA256,
-        rawNonce
-      );
-
-      const request = await AuthSession.loadAsync(
-        {
-          clientId: GOOGLE_WEB_CLIENT_ID,
-          redirectUri,
-          scopes: ['openid', 'email', 'profile'],
-          responseType: 'id_token' as const,
-          extraParams: { nonce: hashedNonce },
-          usePKCE: false,
-        },
-        'https://accounts.google.com'
-      );
-      const result = await request.promptAsync({ useProxy: true });
-      if (result.type !== 'success') {
-        if (result.type === 'dismiss' || result.type === 'cancel') {
-          setError('Sign-in was cancelled.');
-        } else {
-          setError(getFriendlyAuthErrorMessage(result));
-        }
+      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+      const response = await GoogleSignin.signIn();
+      if (response.type === 'cancelled') {
+        setError('Sign-in was cancelled.');
         return null;
       }
-      const idToken = (result.params as { id_token?: string }).id_token;
+      const { idToken } = await GoogleSignin.getTokens();
       if (!idToken) {
-        setError(
-          'Google sign-in did not complete. For an installed app (AAB/APK): add ' +
-            redirectUri +
-            ' to Google Cloud Console → Credentials → your Web client → Authorized redirect URIs. Also ensure EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID is set in EAS and you rebuilt the app.'
-        );
+        setError('Google sign-in did not return a token. Please try again.');
         return null;
       }
       const credential = GoogleAuthProvider.credential(idToken);
-      const cred = await signInWithCredential(auth, credential);
-      return cred;
+      return await signInWithCredential(auth, credential);
     } catch (e: unknown) {
       setError(getFriendlyAuthErrorMessage(e));
       return null;

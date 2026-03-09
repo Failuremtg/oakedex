@@ -153,16 +153,17 @@ export default function NewSingleScreen() {
                   disabled={creating}
                 >
                   {spriteFailed ? (
-                    <View style={[styles.sprite, styles.spritePlaceholder]} />
+                    <View style={[styles.sprite, styles.spritePlaceholder]} pointerEvents="none" />
                   ) : (
                     <Image
                       source={{ uri: getPokemonSpriteUrl(item.dexId) }}
                       style={styles.sprite}
                       resizeMode="contain"
                       onError={() => markSpriteError(item.dexId)}
+                      pointerEvents="none"
                     />
                   )}
-                  <Text style={styles.pokemonName} numberOfLines={2}>
+                  <Text style={styles.pokemonName} numberOfLines={2} pointerEvents="none">
                     {item.name}
                   </Text>
                 </Pressable>
@@ -378,6 +379,7 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 400,
     maxHeight: '85%',
+    minHeight: 280,
     backgroundColor: '#2d2d2d',
     borderRadius: 16,
     padding: 20,

@@ -30,7 +30,8 @@
         "ascAppId": "6759845006"
       },
       "android": {
-        "track": "internal"
+        "track": "internal",
+        "serviceAccountKeyPath": "C:/Users/groeh/Desktop/oakedex-d44e8086cc1c.json"
       }
     }
   }

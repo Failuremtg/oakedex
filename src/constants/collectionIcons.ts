@@ -4,6 +4,8 @@
  * - Single Pokémon → PokeAPI official artwork by dex id
  */
 
+import { FORM_SPRITE_IDS } from '@/src/constants/formSpriteIds';
+
 const POKESPRITE_BALL =
   'https://raw.githubusercontent.com/msikma/pokesprite/master/items-outline/ball';
 
@@ -25,7 +27,14 @@ export const BASE_SET_ICON = 'https://assets.tcgdex.net/univ/base/base1/symbol.p
 /** Jungle set symbol – used for Specific Set Collection menu icon. */
 export const JUNGLE_SET_ICON = 'https://assets.tcgdex.net/univ/base/base2/symbol.png';
 
-/** Official artwork by national dex number (e.g. 25 for Pikachu). */
-export function getPokemonSpriteUrl(dexId: number): string {
-  return `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${dexId}.png`;
+const OFFICIAL_ARTWORK_BASE =
+  'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork';
+
+/** Official artwork by national dex number. When form is set (Mega, Unown, regional, etc.), uses form-specific sprite if available. */
+export function getPokemonSpriteUrl(dexId: number, form?: string): string {
+  const spriteId =
+    form != null && form !== ''
+      ? FORM_SPRITE_IDS[`${dexId}-${form}`] ?? dexId
+      : dexId;
+  return `${OFFICIAL_ARTWORK_BASE}/${spriteId}.png`;
 }
