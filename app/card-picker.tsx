@@ -13,8 +13,8 @@ import { Text, View } from '@/components/Themed';
 import { SyncLoadingScreen } from '@/components/SyncLoadingScreen';
 import { setSlot } from '@/src/lib/collections';
 import { getPocketSetIds } from '@/src/lib/cardDataCache';
-import { getTcgSearchName } from '@/src/lib/masterSetExpansion';
-import { getCard, getCardsByName, type TCGdexLang } from '@/src/lib/tcgdex';
+import { getTcgSearchName, isOldMegaCardName, getOldMegaSearchNames } from '@/src/lib/masterSetExpansion';
+import { getCard, getCardsByName, filterCardsByNameStrict, type TCGdexLang } from '@/src/lib/tcgdex';
 import { addMasterBallIfEligible, cardHasMasterBall } from '@/src/lib/masterBallSets';
 import { getVariantLabel, getVariantsFromCard, type CardVariant } from '@/src/types';
 import type { PokemonSummary } from '@/src/types';
@@ -74,10 +74,19 @@ export default function CardPickerScreen() {
         const summary: PokemonSummary = {
           dexId: 0,
           name: pokemonName,
-          form: pokemonName.startsWith('Gigantamax ') ? 'gmax' : undefined,
+          form: pokemonName.startsWith('Gigantamax ') ? 'gmax' : pokemonName.startsWith('Mega ') ? (pokemonName.includes(' X') ? 'mega-x' : pokemonName.includes(' Y') ? 'mega-y' : 'mega') : undefined,
         };
         const searchName = getTcgSearchName(summary);
-        const list = await getCardsByName(LANG, searchName, { exact: false });
+        let list = await getCardsByName(LANG, searchName, { exact: false });
+        if (summary.form?.startsWith('mega')) {
+          for (const oldName of getOldMegaSearchNames(summary)) {
+            const extra = await getCardsByName(LANG, oldName, { exact: false });
+            const seen = new Set((list ?? []).map((c) => c.id));
+            for (const c of extra ?? []) if (!seen.has(c.id)) { list = [...(list ?? []), c]; seen.add(c.id); }
+          }
+        } else {
+          list = filterCardsByNameStrict(list ?? [], searchName).filter((c) => !isOldMegaCardName(c.name ?? ''));
+        }
         const pocketIds = await getPocketSetIds();
         const pocketSet = new Set(pocketIds);
         const filtered = (list ?? []).filter((c) => !pocketSet.has(setIdFromCardId(c.id)));

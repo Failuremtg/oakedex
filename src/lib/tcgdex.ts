@@ -245,6 +245,24 @@ export async function getCardsByName(
 }
 
 /**
+ * Filter card briefs so only names that match the intended species/entry are kept.
+ * Keeps exact match or "SearchName " prefix (e.g. "Abra" matches "Abra", "Abra ex"; rejects "Kadabra").
+ * Use when loading cards for a specific slot to avoid substring matches (Abra vs Kadabra).
+ */
+export function filterCardsByNameStrict<T extends { name?: string | null }>(
+  cards: T[],
+  searchName: string
+): T[] {
+  const s = (searchName ?? '').trim();
+  if (!s) return cards;
+  const prefix = s + ' ';
+  return cards.filter((c) => {
+    const n = (c.name ?? '').trim();
+    return n === s || n.startsWith(prefix);
+  });
+}
+
+/**
  * Fetch full card details for each brief to get dexId and variants.
  * Use when we need to show variant options or dexId.
  */

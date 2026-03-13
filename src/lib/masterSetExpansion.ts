@@ -98,6 +98,12 @@ const GMAX_FORMS: ExtraEntry[] = [
   { baseDexId: 901, name: 'Gigantamax Ursaluna', form: 'gmax' },
 ];
 
+// VMAX cards (TCG mechanic) for Pokémon that don't have Gigantamax – e.g. Venusaur VMAX, Blastoise VMAX. Name as on card.
+const VMAX_FORMS: ExtraEntry[] = [
+  { baseDexId: 3, name: 'Venusaur VMAX', form: 'vmax' },
+  { baseDexId: 9, name: 'Blastoise VMAX', form: 'vmax' },
+];
+
 // Regional forms (Alolan, Galarian, Hisuian, Paldean) – name as on TCG cards. One entry per form.
 const REGIONAL_FORMS: ExtraEntry[] = [
   { baseDexId: 19, name: 'Alolan Rattata', form: 'alola' },
@@ -456,14 +462,51 @@ function extraToSummary(e: ExtraEntry): PokemonSummary {
 /**
  * Name to use when searching TCGdex for cards. In the TCG, Gigantamax Pokémon
  * are printed as "Pikachu VMAX", "Charizard VMAX", etc., not "Gigantamax Pikachu".
+ * VMAX-only entries (e.g. Venusaur VMAX, Blastoise VMAX) use the name as-is.
  */
 export function getTcgSearchName(p: PokemonSummary): string {
+  if (p.form === 'vmax') return p.name; // already "Venusaur VMAX", "Blastoise VMAX"
   if (p.form === 'gmax' || p.form?.startsWith('gmax')) {
     const prefix = 'Gigantamax ';
     const base = p.name.startsWith(prefix) ? p.name.slice(prefix.length) : p.name;
     return `${base} VMAX`;
   }
   return p.name;
+}
+
+/**
+ * Old TCG cards use "M Charizard", "MCharizard", "Mmewtwo" etc. for Mega Evolutions.
+ * Returns true if the card name is this old-style mega (M prefix + species name).
+ */
+export function isOldMegaCardName(cardName: string): boolean {
+  const n = (cardName ?? '').trim();
+  if (n.length < 2) return false;
+  // "M " followed by something, or "M" + uppercase letter (e.g. MCharizard, Mmewtwo)
+  if (n.startsWith('M ')) return true;
+  if (n[0] === 'M' && n[1] === n[1].toUpperCase() && n[1] !== ' ') return true;
+  return false;
+}
+
+/**
+ * For a mega slot (e.g. "Mega Charizard X"), returns the base species name "Charizard"
+ * so we can also search for old-style "M Charizard" / "MCharizard" cards.
+ */
+export function getMegaBaseNameForOldSearch(megaDisplayName: string): string | null {
+  const name = (megaDisplayName ?? '').trim();
+  if (!name.startsWith('Mega ')) return null;
+  const after = name.slice(5).trim();
+  const withoutSuffix = after.replace(/\s+[XY]$/i, '').trim();
+  return withoutSuffix || null;
+}
+
+/**
+ * For a mega PokemonSummary, returns extra search names to include old-style cards
+ * (e.g. "M Charizard" for Mega Charizard X/Y). Caller should merge results.
+ */
+export function getOldMegaSearchNames(p: PokemonSummary): string[] {
+  if (!p.form || !p.form.startsWith('mega')) return [];
+  const base = getMegaBaseNameForOldSearch(p.name);
+  return base ? [`M ${base}`, `M${base}`] : [];
 }
 
 /**
@@ -484,6 +527,7 @@ export function getExpandedSpeciesList(
   }
   if (options.gmax) {
     for (const e of GMAX_FORMS) out.push(extraToSummary(e));
+    for (const e of VMAX_FORMS) out.push(extraToSummary(e));
   }
   if (options.regionalForms) {
     for (const e of REGIONAL_FORMS) out.push(extraToSummary(e));

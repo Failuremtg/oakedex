@@ -167,7 +167,7 @@ export function getExtraSetNamesById(): Record<string, string> {
   return out;
 }
 
-/** Extra printings whose name matches (case-insensitive). For exact match, pass options.exact. */
+/** Extra printings whose name matches (case-insensitive). For exact match, pass options.exact. When exact is false, matches exact or "name " prefix so e.g. "Abra" does not match "Kadabra". */
 export function getExtraPrintingsForName(
   name: string,
   options?: { exact?: boolean }
@@ -176,15 +176,20 @@ export function getExtraPrintingsForName(
   const q = (name ?? '').trim().toLowerCase();
   if (!q) return [];
   const exact = options?.exact ?? false;
+  const prefix = q + ' ';
   return all.filter((c) => {
     const n = (c.name ?? '').trim().toLowerCase();
-    return exact ? n === q : n.includes(q) || q.includes(n);
+    return exact ? n === q : n === q || n.startsWith(prefix);
   });
 }
 
-/** Search: extra printings whose name contains the query (case-insensitive). */
+/** Search: extra printings whose name matches query (exact or "query " prefix) so e.g. "Abra" does not match "Kadabra". */
 export function searchExtraPrintings(query: string): ExtraPrintingBrief[] {
   const q = (query ?? '').trim().toLowerCase();
   if (!q) return [];
-  return loadFromJson().filter((c) => (c.name ?? '').toLowerCase().includes(q));
+  const prefix = q + ' ';
+  return loadFromJson().filter((c) => {
+    const n = (c.name ?? '').toLowerCase();
+    return n === q || n.startsWith(prefix);
+  });
 }

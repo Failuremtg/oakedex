@@ -12,7 +12,7 @@ import { Text } from '@/components/Themed';
 import { CachedImage } from '@/components/CachedImage';
 import { setSlot } from '@/src/lib/collections';
 import { searchExtraPrintings } from '@/src/lib/extraPrintings';
-import { getCard, getCardsByName, type TCGdexLang } from '@/src/lib/tcgdex';
+import { getCard, getCardsByName, filterCardsByNameStrict, type TCGdexLang } from '@/src/lib/tcgdex';
 import { normalizeTcgdexImageUrl } from '@/src/lib/tcgdex';
 import { getDisplayVariants, getVariantLabel, type CardVariant } from '@/src/types';
 import { CARD_VARIANTS } from '@/src/types';
@@ -45,7 +45,8 @@ export default function CardSearchAddScreen() {
     Promise.all([getCardsByName(LANG, q, { exact: false }), Promise.resolve(searchExtraPrintings(q))])
       .then(([apiCards, extraCards]) => {
         if (cancelled) return;
-        const apiList = (apiCards ?? []).map((c) => ({
+        const strictCards = q.includes(' ') ? (apiCards ?? []) : filterCardsByNameStrict(apiCards ?? [], q);
+        const apiList = strictCards.map((c) => ({
           id: c.id,
           name: c.name,
           localId: c.localId,

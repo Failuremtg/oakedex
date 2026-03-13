@@ -36,10 +36,10 @@ import {
 import { getCollectionDisplayName, getCollectionSubtitle } from '@/src/lib/collectionDisplay';
 import { addExcludedSetId, getPocketSetIds, getSetWithCache, getSetsWithCache, getSpeciesWithCache } from '@/src/lib/cardDataCache';
 import { addMasterBallIfEligible } from '@/src/lib/masterBallSets';
-import { getExpandedSpeciesList, getTcgSearchName } from '@/src/lib/masterSetExpansion';
+import { getExpandedSpeciesList, getTcgSearchName, isOldMegaCardName, getOldMegaSearchNames } from '@/src/lib/masterSetExpansion';
 import { getAnyOverrideUri, setOverride } from '@/src/lib/cardImageOverrides';
 import { getSpecies, getSpeciesNameForLang } from '@/src/lib/pokeapi';
-import { getCard, getCardsByName, getCardsByIds, getCardsFull, normalizeTcgdexImageUrl, cardImageUrlFromId, LANGUAGE_OPTIONS, toAppCardBrief, type TCGdexLang } from '@/src/lib/tcgdex';
+import { getCard, getCardsByName, getCardsByIds, getCardsFull, filterCardsByNameStrict, normalizeTcgdexImageUrl, cardImageUrlFromId, LANGUAGE_OPTIONS, toAppCardBrief, type TCGdexLang } from '@/src/lib/tcgdex';
 import { CARD_VARIANTS, cardSlotKey, filterVariantsByEdition, filterVariantsBySetCardCount, filterVariantsBySetReleaseDate, getDisplayVariants, getSlotKey, getSlotKeyForEntry, getVariantLabel, getVariantsFromCard, type AppCardBrief, type CardVariant, type CustomCard, type MasterListEntry, type PokemonSummary, type Slot, type SlotCard } from '@/src/types';
 import { getDefaultCardOverrides, getCustomCards, getExcludedCardVersions, addExcludedCardVersion, cardVersionKey } from '@/src/lib/adminBinderConfig';
 import { getPokemonSpriteUrl } from '@/src/constants/collectionIcons';
@@ -545,11 +545,15 @@ export default function BinderScreen() {
               ? getTcgSearchName(singleSummary)
               : (getSpeciesNameForLang(species, lang) ?? coll.singlePokemonName!);
             let briefs = await getCardsByName(lang, searchName, { exact: !includeRegional });
+            briefs = filterCardsByNameStrict(briefs ?? [], searchName);
+            if (!singleSummary.form) briefs = briefs.filter((b) => !isOldMegaCardName(b.name ?? ''));
             let fullCardsFromFallback: Awaited<ReturnType<typeof getCard>>[] | null = null;
             // PokeAPI has no Thai (and some other langs); we fall back to English name so name search returns [].
             // Resolve via English: get card IDs from EN, then fetch each card in target language (same IDs).
             if ((briefs ?? []).length === 0 && lang !== 'en' && searchName) {
-              const enBriefs = await getCardsByName('en', searchName, { exact: !includeRegional });
+              let enBriefs = await getCardsByName('en', searchName, { exact: !includeRegional });
+              enBriefs = filterCardsByNameStrict(enBriefs ?? [], searchName);
+              if (!singleSummary.form) enBriefs = enBriefs.filter((b) => !isOldMegaCardName(b.name ?? ''));
               const cardIds = (enBriefs ?? []).map((c) => c.id);
               const fullInLang: (Awaited<ReturnType<typeof getCard>> | null)[] = [];
               for (let i = 0; i < cardIds.length; i += 50) {
@@ -667,9 +671,13 @@ export default function BinderScreen() {
                 ? getTcgSearchName(singleSummary)
                 : (getSpeciesNameForLang(species, lang) ?? pokemonName);
               let briefs = await getCardsByName(lang, searchName, { exact: !includeRegional });
+              briefs = filterCardsByNameStrict(briefs ?? [], searchName);
+              if (!singleSummary.form) briefs = briefs.filter((b) => !isOldMegaCardName(b.name ?? ''));
               let fullCardsFromFallback: Awaited<ReturnType<typeof getCard>>[] | null = null;
               if ((briefs ?? []).length === 0 && lang !== 'en' && searchName) {
-                const enBriefs = await getCardsByName('en', searchName, { exact: !includeRegional });
+                let enBriefs = await getCardsByName('en', searchName, { exact: !includeRegional });
+                enBriefs = filterCardsByNameStrict(enBriefs ?? [], searchName);
+                if (!singleSummary.form) enBriefs = enBriefs.filter((b) => !isOldMegaCardName(b.name ?? ''));
                 const cardIds = (enBriefs ?? []).map((c) => c.id);
                 const fullInLang: (Awaited<ReturnType<typeof getCard>> | null)[] = [];
                 for (let j = 0; j < cardIds.length; j += 50) {
@@ -867,7 +875,18 @@ export default function BinderScreen() {
           if (!didSet && !isCustom) {
             try {
               const searchName = getTcgSearchName(item);
-              const cards = await getCardsByName(LANG, searchName, { exact: false });
+              let cards = await getCardsByName(LANG, searchName, { exact: false });
+              if (item.form?.startsWith('mega')) {
+                const oldNames = getOldMegaSearchNames(item);
+                for (const oldName of oldNames) {
+                  const extra = await getCardsByName(LANG, oldName, { exact: false });
+                  const seen = new Set(cards.map((c) => c.id));
+                  for (const c of extra ?? []) if (!seen.has(c.id)) { cards = [...cards, c]; seen.add(c.id); }
+                }
+              } else {
+                cards = filterCardsByNameStrict(cards ?? [], searchName);
+                cards = cards.filter((c) => !isOldMegaCardName(c.name ?? ''));
+              }
               const pocketIds = await getPocketSetIds();
               const pocketSet = new Set(pocketIds);
               const filtered = cards.filter((c) => !pocketSet.has(setIdFromCardId(c.id)));
@@ -1316,9 +1335,28 @@ export default function BinderScreen() {
         for (const lang of langs) {
           const searchName = isForm ? getTcgSearchName(pickerSummary) : (getSpeciesNameForLang(species, lang) ?? masterPickerPokemon.name);
           let cards = await getCardsByName(lang, searchName, { exact: false });
+          if (isForm && formPart?.startsWith('mega')) {
+            const oldNames = getOldMegaSearchNames(pickerSummary);
+            for (const oldName of oldNames) {
+              const extra = await getCardsByName(lang, oldName, { exact: false });
+              const seen = new Set((cards ?? []).map((c) => c.id));
+              for (const c of extra ?? []) if (!seen.has(c.id)) { cards = [...(cards ?? []), c]; seen.add(c.id); }
+            }
+          } else {
+            cards = filterCardsByNameStrict(cards ?? [], searchName);
+            cards = cards.filter((c) => !isOldMegaCardName(c.name ?? ''));
+          }
           // PokeAPI has no Thai etc.; name search returns []. Resolve via English card IDs.
           if ((cards ?? []).length === 0 && lang !== 'en' && searchName) {
-            const enCards = await getCardsByName('en', searchName, { exact: false });
+            let enCards = await getCardsByName('en', searchName, { exact: false });
+            if (!isForm) enCards = filterCardsByNameStrict(enCards ?? [], searchName).filter((c) => !isOldMegaCardName(c.name ?? ''));
+            else if (formPart?.startsWith('mega')) {
+              for (const oldName of getOldMegaSearchNames(pickerSummary)) {
+                const extra = await getCardsByName('en', oldName, { exact: false });
+                const seen = new Set((enCards ?? []).map((c) => c.id));
+                for (const c of extra ?? []) if (!seen.has(c.id)) { enCards = [...(enCards ?? []), c]; seen.add(c.id); }
+              }
+            }
             const ids = (enCards ?? []).map((c) => c.id);
             const fullInLang: (Awaited<ReturnType<typeof getCard>> | null)[] = [];
             for (let i = 0; i < ids.length; i += 50) {

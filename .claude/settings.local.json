@@ -75,7 +75,9 @@
       "Bash(git push)",
       "Bash(git add vercel.json)",
       "Bash(git add api/order.js)",
-      "Bash(git add api/test.js)"
+      "Bash(git add api/test.js)",
+      "Bash(eas env:list --environment production)",
+      "Bash(npx expo install @react-native-google-signin/google-signin)"
     ]
   }
 }

@@ -8,9 +8,9 @@ import { getCustomCards } from '@/src/lib/adminBinderConfig';
 import { listManualCards, manualCardsToCustomCards } from '@/src/lib/manualCards';
 import { getPocketSetIds, getSetWithCache, getSpeciesWithCache } from '@/src/lib/cardDataCache';
 import { addMasterBallIfEligible } from '@/src/lib/masterBallSets';
-import { getExpandedSpeciesList, getTcgSearchName } from '@/src/lib/masterSetExpansion';
+import { getExpandedSpeciesList, getTcgSearchName, isOldMegaCardName } from '@/src/lib/masterSetExpansion';
 import { getSpecies, getSpeciesNameForLang } from '@/src/lib/pokeapi';
-import { getCard, getCardsByName, getCardsFull, type TCGdexLang } from '@/src/lib/tcgdex';
+import { getCard, getCardsByName, getCardsFull, filterCardsByNameStrict, type TCGdexLang } from '@/src/lib/tcgdex';
 
 function setIdFromCardId(cardId: string): string {
   const i = cardId.lastIndexOf('-');
@@ -55,9 +55,13 @@ async function getSinglePokemonTotal(c: Collection): Promise<number | null> {
           ? getTcgSearchName(singleSummary)
           : (getSpeciesNameForLang(species, lang) ?? c.singlePokemonName!);
       let briefs = await getCardsByName(lang, searchName, { exact: !includeRegional });
-      briefs = (briefs ?? []).filter((b) => !pocketSet.has(setIdFromCardId(b.id)));
+      briefs = filterCardsByNameStrict(briefs ?? [], searchName);
+      if (!singleSummary.form) briefs = briefs.filter((b) => !isOldMegaCardName(b.name ?? ''));
+      briefs = briefs.filter((b) => !pocketSet.has(setIdFromCardId(b.id)));
       if (briefs.length === 0 && lang !== 'en' && searchName) {
-        const enBriefs = await getCardsByName('en', searchName, { exact: !includeRegional });
+        let enBriefs = await getCardsByName('en', searchName, { exact: !includeRegional });
+        enBriefs = filterCardsByNameStrict(enBriefs ?? [], searchName);
+        if (!singleSummary.form) enBriefs = enBriefs.filter((b) => !isOldMegaCardName(b.name ?? ''));
         const cardIds = (enBriefs ?? []).filter((b) => !pocketSet.has(setIdFromCardId(b.id))).map((x) => x.id);
         for (let i = 0; i < cardIds.length; i += 50) {
           const batch = cardIds.slice(i, i + 50);

@@ -17,6 +17,7 @@ import { useViewMode } from '@/src/lib/viewModeStorage';
 import {
   cardImageUrlFromId,
   getCardsByName,
+  filterCardsByNameStrict,
   LANGUAGE_OPTIONS,
   normalizeTcgdexImageUrl,
   type TCGdexCardBrief,
@@ -100,7 +101,8 @@ export default function CardDexScreen() {
     try {
       const results = await Promise.all(
         selectedLangs.map(async (lang) => {
-          const briefs = await getCardsByName(lang, q, { exact: false });
+          let briefs = await getCardsByName(lang, q, { exact: false });
+          if (!q.includes(' ')) briefs = filterCardsByNameStrict(briefs ?? [], q);
           return briefs.slice(0, MAX_RESULTS_PER_LANG).map((b) => ({ ...b, lang }));
         })
       );

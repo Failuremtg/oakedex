@@ -22,9 +22,9 @@ import { SyncLoadingScreen } from '@/components/SyncLoadingScreen';
 import { charcoal } from '@/constants/Colors';
 import { getDefaultCardOverrides, getCustomCards, setDefaultCardOverrides } from '@/src/lib/adminBinderConfig';
 import { getSpeciesWithCache } from '@/src/lib/cardDataCache';
-import { getExpandedSpeciesList, getTcgSearchName, VARIATION_GROUPS } from '@/src/lib/masterSetExpansion';
+import { getExpandedSpeciesList, getTcgSearchName, isOldMegaCardName, getOldMegaSearchNames, VARIATION_GROUPS } from '@/src/lib/masterSetExpansion';
 import { getSpecies, getSpeciesNameForLang } from '@/src/lib/pokeapi';
-import { getCard, getCardsByName, getCardsFull, normalizeTcgdexImageUrl, toAppCardBrief, type TCGdexLang } from '@/src/lib/tcgdex';
+import { getCard, getCardsByName, getCardsFull, filterCardsByNameStrict, normalizeTcgdexImageUrl, toAppCardBrief, type TCGdexLang } from '@/src/lib/tcgdex';
 import { cardSlotKey, filterVariantsByEdition, getDisplayVariants, getSlotKeyForEntry, type AppCardBrief, type CardVariant, type CustomCard, type MasterListEntry } from '@/src/types';
 
 const LANG: TCGdexLang = 'en';
@@ -166,8 +166,25 @@ export default function AdminMasterSetScreen() {
         const pickerSummary = { dexId: numericDexId ?? 0, name: pickerSlot.name, form: formPart };
         const searchName = isForm ? getTcgSearchName(pickerSummary) : (getSpeciesNameForLang(species, LANG) ?? pickerSlot.name);
         let cards = await getCardsByName(LANG, searchName, { exact: false });
+        if (isForm && formPart?.startsWith('mega')) {
+          for (const oldName of getOldMegaSearchNames(pickerSummary)) {
+            const extra = await getCardsByName(LANG, oldName, { exact: false });
+            const seen = new Set((cards ?? []).map((c) => c.id));
+            for (const c of extra ?? []) if (!seen.has(c.id)) { cards = [...(cards ?? []), c]; seen.add(c.id); }
+          }
+        } else {
+          cards = filterCardsByNameStrict(cards ?? [], searchName).filter((c) => !isOldMegaCardName(c.name ?? ''));
+        }
         if ((cards ?? []).length === 0 && LANG !== 'en' && searchName) {
-          const enCards = await getCardsByName('en', searchName, { exact: false });
+          let enCards = await getCardsByName('en', searchName, { exact: false });
+          if (!isForm) enCards = filterCardsByNameStrict(enCards ?? [], searchName).filter((c) => !isOldMegaCardName(c.name ?? ''));
+          else if (formPart?.startsWith('mega')) {
+            for (const oldName of getOldMegaSearchNames(pickerSummary)) {
+              const extra = await getCardsByName('en', oldName, { exact: false });
+              const seen = new Set((enCards ?? []).map((c) => c.id));
+              for (const c of extra ?? []) if (!seen.has(c.id)) { enCards = [...(enCards ?? []), c]; seen.add(c.id); }
+            }
+          }
           const ids = (enCards ?? []).map((c) => c.id);
           for (let i = 0; i < ids.length; i += 50) {
             const batch = ids.slice(i, i + 50);
