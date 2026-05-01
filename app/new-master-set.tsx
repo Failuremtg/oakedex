@@ -10,12 +10,14 @@ import { LANGUAGE_OPTIONS, type TCGdexLang } from '@/src/lib/tcgdex';
 import type { MasterSetOptions } from '@/src/types';
 import { getCustomCards } from '@/src/lib/adminBinderConfig';
 import { getSpeciesWithCache } from '@/src/lib/cardDataCache';
+import { useIsSubscriber } from '@/src/subscription/SubscriptionContext';
 
 const DEFAULT_NAME = 'Master Set';
 
 export default function NewMasterSetScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const isSubscriber = useIsSubscriber();
   const [name, setName] = useState(DEFAULT_NAME);
   const [creating, setCreating] = useState(false);
   const [regionalForms, setRegionalForms] = useState(false);
@@ -66,6 +68,13 @@ export default function NewMasterSetScreen() {
   const onCreateBinder = useCallback(
     async () => {
       if (!selectedColorId || creating) return;
+      if (!isSubscriber) {
+        const collections = await loadCollectionsForDisplay().catch(() => []);
+        if (collections.length >= 3) {
+          router.push('/paywall');
+          return;
+        }
+      }
       setCreating(true);
       const coll = await createCollection('master_set', name.trim() || DEFAULT_NAME, {
         masterSetOptions: options,
@@ -75,7 +84,7 @@ export default function NewMasterSetScreen() {
       setCreating(false);
       router.replace(`/binder/${coll.id}?edit=1`);
     },
-    [name, options, selectedLanguages, selectedColorId, creating, router]
+    [name, options, selectedLanguages, selectedColorId, creating, router, isSubscriber]
   );
 
   const onSelectColor = useCallback((colorId: string) => {

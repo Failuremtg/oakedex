@@ -40,7 +40,7 @@ function parseLocalId(localId: string | undefined): number | null {
 }
 
 /** True if the card is a Pokémon ex (name ends with " ex"). */
-function isExCard(card: { name?: string } | null): boolean {
+function isExCard(card: { name?: string } | null | undefined): boolean {
   const name = card?.name?.trim();
   return !!name && /\s+ex$/i.test(name);
 }

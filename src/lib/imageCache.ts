@@ -17,6 +17,45 @@ import { normalizeTcgdexImageUrl } from './tcgdex';
 const CACHE_DIR = 'oakedex-card-images';
 const MANIFEST_KEY = '@oakedex/imagecache/manifest';
 const MAX_CACHE_BYTES = 80 * 1024 * 1024; // 80MB
+const MAX_CONCURRENT_DOWNLOADS = 4;
+
+// Many cards can render at once (e.g. Unown picker). Without throttling/deduping,
+// we can end up with dozens of concurrent downloads + AsyncStorage writes, which
+// can stall rendering and make lists appear to "stop" loading images.
+const inFlightByKey = new Map<string, Promise<string>>();
+let activeDownloads = 0;
+const downloadQueue: Array<() => void> = [];
+let manifestMutex: Promise<void> = Promise.resolve();
+
+async function withManifestLock<T>(fn: () => Promise<T>): Promise<T> {
+  const prev = manifestMutex;
+  let release!: () => void;
+  manifestMutex = new Promise<void>((r) => { release = r; });
+  await prev;
+  try {
+    return await fn();
+  } finally {
+    release();
+  }
+}
+
+async function acquireDownloadSlot(): Promise<void> {
+  if (activeDownloads < MAX_CONCURRENT_DOWNLOADS) {
+    activeDownloads += 1;
+    return;
+  }
+  await new Promise<void>((resolve) => {
+    downloadQueue.push(() => {
+      activeDownloads += 1;
+      resolve();
+    });
+  });
+}
+function releaseDownloadSlot(): void {
+  activeDownloads = Math.max(0, activeDownloads - 1);
+  const next = downloadQueue.shift();
+  if (next) next();
+}
 
 interface ManifestEntry {
   key: string;
@@ -96,43 +135,64 @@ export async function getOrDownloadImageUri(remoteUri: string | null | undefined
   if (!isCacheAvailable()) return normalized;
 
   const key = hashUrl(normalized);
-  const manifest = await getManifest();
-  const existing = manifest.entries.find((e) => e.key === key);
-  if (existing) {
+  const existingUri = await withManifestLock(async () => {
+    const manifest = await getManifest();
+    const existing = manifest.entries.find((e) => e.key === key);
+    if (!existing) return null;
     try {
-      const info = await getInfoAsync(existing.uri, { size: true });
-      if (info.exists) return existing.uri;
+      const info = await getInfoAsync(existing.uri);
+      return info.exists ? existing.uri : null;
     } catch {
-      /* fall through to re-download */
+      return null;
+    }
+  });
+  if (existingUri) return existingUri;
+
+  const inFlight = inFlightByKey.get(key);
+  if (inFlight) {
+    try {
+      return await inFlight;
+    } catch {
+      return normalized;
     }
   }
 
-  const dirUri = `${cacheDirectory}${CACHE_DIR}/`;
-  try {
-    await makeDirectoryAsync(dirUri, { intermediates: true });
-  } catch {
-    return normalized;
-  }
-  const fileUri = `${dirUri}${key}.png`;
-  try {
-    const result = await downloadAsync(normalized, fileUri);
-    const localUri = result.uri;
-    const info = await getInfoAsync(localUri, { size: true });
-    const size = (info as { size?: number }).size ?? 0;
-    const mtime = Date.now();
-    const newEntry: ManifestEntry = { key, uri: localUri, size, mtime };
-    const withoutOld = existing
-      ? manifest.entries.filter((e) => e.key !== key)
-      : manifest.entries;
-    const newTotal = manifest.totalSize - (existing?.size ?? 0) + size;
-    let newManifest: Manifest = {
-      entries: [...withoutOld, newEntry],
-      totalSize: newTotal,
-    };
-    newManifest = await evictUntilUnderLimit(newManifest, 0);
-    await saveManifest(newManifest);
-    return localUri;
-  } catch {
-    return normalized;
-  }
+  const task = (async () => {
+    const dirUri = `${cacheDirectory}${CACHE_DIR}/`;
+    try {
+      await makeDirectoryAsync(dirUri, { intermediates: true });
+    } catch {
+      return normalized;
+    }
+    const fileUri = `${dirUri}${key}.png`;
+    await acquireDownloadSlot();
+    try {
+      const result = await downloadAsync(normalized, fileUri);
+      const localUri = result.uri;
+
+      await withManifestLock(async () => {
+        const manifest = await getManifest();
+        const existing = manifest.entries.find((e) => e.key === key);
+        const info = await getInfoAsync(localUri);
+        const size = (info as { size?: number }).size ?? 0;
+        const mtime = Date.now();
+        const newEntry: ManifestEntry = { key, uri: localUri, size, mtime };
+        const withoutOld = existing ? manifest.entries.filter((e) => e.key !== key) : manifest.entries;
+        const newTotal = manifest.totalSize - (existing?.size ?? 0) + size;
+        let newManifest: Manifest = { entries: [...withoutOld, newEntry], totalSize: newTotal };
+        newManifest = await evictUntilUnderLimit(newManifest, 0);
+        await saveManifest(newManifest);
+      });
+
+      return localUri;
+    } catch {
+      return normalized;
+    } finally {
+      releaseDownloadSlot();
+      inFlightByKey.delete(key);
+    }
+  })();
+
+  inFlightByKey.set(key, task);
+  return await task;
 }

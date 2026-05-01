@@ -12,6 +12,7 @@ import {
   Pressable,
   ScrollView,
   SectionList,
+  Switch,
   StyleSheet,
   Text,
   TextInput,
@@ -21,6 +22,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { CachedImage } from '@/components/CachedImage';
+import { HoloSheen } from '@/components/HoloSheen';
 import { SyncLoadingScreen } from '@/components/SyncLoadingScreen';
 import { charcoal } from '@/constants/Colors';
 import {
@@ -40,7 +42,7 @@ import { getExpandedSpeciesList, getTcgSearchName, isOldMegaCardName, getOldMega
 import { getAnyOverrideUri, setOverride } from '@/src/lib/cardImageOverrides';
 import { getSpecies, getSpeciesNameForLang } from '@/src/lib/pokeapi';
 import { getCard, getCardsByName, getCardsByIds, getCardsFull, filterCardsByNameStrict, normalizeTcgdexImageUrl, cardImageUrlFromId, LANGUAGE_OPTIONS, toAppCardBrief, type TCGdexLang } from '@/src/lib/tcgdex';
-import { CARD_VARIANTS, cardSlotKey, filterVariantsByEdition, filterVariantsBySetCardCount, filterVariantsBySetReleaseDate, getDisplayVariants, getSlotKey, getSlotKeyForEntry, getVariantLabel, getVariantsFromCard, type AppCardBrief, type CardVariant, type CustomCard, type MasterListEntry, type PokemonSummary, type Slot, type SlotCard } from '@/src/types';
+import { CARD_VARIANTS, cardSlotKey, filterVariantsByEdition, filterVariantsBySetAndLanguage, filterVariantsBySetCardCount, getDisplayVariants, getSlotKey, getSlotKeyForEntry, getVariantLabel, getVariantsFromCard, type AppCardBrief, type CardVariant, type CustomCard, type MasterListEntry, type PokemonSummary, type Slot, type SlotCard } from '@/src/types';
 import { getDefaultCardOverrides, getCustomCards, getExcludedCardVersions, addExcludedCardVersion, cardVersionKey } from '@/src/lib/adminBinderConfig';
 import { getPokemonSpriteUrl } from '@/src/constants/collectionIcons';
 import { getExtraPrintingsForName, getExtraSetNamesById } from '@/src/lib/extraPrintings';
@@ -49,6 +51,7 @@ import { useAuth } from '@/src/auth/AuthContext';
 import { useSubscription } from '@/src/subscription/SubscriptionContext';
 import { useIsAdmin } from '@/src/lib/adminConfig';
 import { getLocalRemovedSlotKeys, addLocalRemovedSlot } from '@/src/lib/localRemovedSlots';
+import { hapticLight } from '@/src/lib/haptics';
 import {
   getGlobalBinderSlots,
   globalKeyBySet,
@@ -88,6 +91,55 @@ function customMultiSlotKey(pokemonSlug: string, lang: string, cardId: string, v
 }
 
 const LANG: TCGdexLang = 'en';
+const PSA_GRADE_OPTIONS: string[] = [
+  'Authentic',
+  '1',
+  '1.5',
+  '2',
+  '2.5',
+  '3',
+  '3.5',
+  '4',
+  '4.5',
+  '5',
+  '5.5',
+  '6',
+  '6.5',
+  '7',
+  '7.5',
+  '8',
+  '8.5',
+  '9',
+  '10',
+];
+
+function isMegaLikeForm(form?: string): boolean {
+  return !!form && (form.startsWith('mega') || form === 'primal');
+}
+function isVmaxLikeForm(form?: string): boolean {
+  return !!form && (form === 'vmax' || form === 'gmax' || form.startsWith('gmax'));
+}
+
+function filterCardsForBasePool<T extends { name?: string | null }>(cards: T[], baseName: string): T[] {
+  const s = (baseName ?? '').trim();
+  if (!s) return cards;
+  const n0 = s;
+  const n1 = `${s} `;
+  const n2 = `${s}(`;
+  const n3 = `${s} (`;
+  const regionalPrefixes = ['Alolan', 'Galarian', 'Hisuian', 'Paldean'];
+  const regionalStarts = regionalPrefixes.map((p) => `${p} ${s}`);
+  return cards.filter((c) => {
+    const n = (c.name ?? '').trim();
+    if (n === n0) return true;
+    if (n.startsWith(n1)) return true; // "Tauros ex", "Unown A", etc.
+    if (n.startsWith(n2) || n.startsWith(n3)) return true; // "Tauros (Combat Breed)"
+    for (const rs of regionalStarts) {
+      if (n === rs || n.startsWith(rs + ' ')) return true; // "Paldean Tauros", "Paldean Tauros ex"
+    }
+    return false;
+  });
+}
 
 function chunk<T>(arr: T[], size: number): T[][] {
   const out: T[][] = [];
@@ -183,10 +235,25 @@ export default function BinderScreen() {
     slotKey?: string;
     variant?: CardVariant;
   } | null>(null);
+
+  const isHoloVariant = useCallback((v: CardVariant | undefined | null) => v === 'holo' || v === 'reverse', []);
+
+  const shouldShowHolo = useCallback(
+    (slotCard: { variant: CardVariant; holoEffect?: boolean } | null | undefined, fallbackVariant?: CardVariant) => {
+      const v = fallbackVariant ?? slotCard?.variant;
+      if (!isHoloVariant(v)) return false;
+      const override = slotCard?.holoEffect;
+      if (override === false) return false;
+      return true;
+    },
+    [isHoloVariant]
+  );
   const [addUserCardVisible, setAddUserCardVisible] = useState(false);
   const [addUserCardName, setAddUserCardName] = useState('');
   const [addUserCardSetName, setAddUserCardSetName] = useState('');
   const [addUserCardCollectorNumber, setAddUserCardCollectorNumber] = useState('');
+  const [addUserCardGradingService, setAddUserCardGradingService] = useState('');
+  const [addUserCardGrade, setAddUserCardGrade] = useState<string>('');
   const [addUserCardImageUri, setAddUserCardImageUri] = useState<string | null>(null);
   const [addUserCardTargetSlotKey, setAddUserCardTargetSlotKey] = useState<string | null>(null);
   const [addUserCardTargetName, setAddUserCardTargetName] = useState('');
@@ -226,7 +293,9 @@ export default function BinderScreen() {
       if (!id) return;
       Alert.alert(
         'Remove card',
-        'Remove this card from your custom binder?',
+        collection?.type === 'graded'
+          ? 'Remove this graded card from your collection?'
+          : 'Remove this card from your binder?',
         [
           { text: 'Cancel', style: 'cancel' },
           {
@@ -234,16 +303,21 @@ export default function BinderScreen() {
             style: 'destructive',
             onPress: async () => {
               setIsSaving(true);
-              const updated = await setSlot(id, slotKey, null);
-              setIsSaving(false);
-              if (updated) setCollection(updated);
-              closeCardOverlay();
+              try {
+                const updated = await setSlot(id, slotKey, null);
+                if (updated) setCollection(updated);
+                closeCardOverlay();
+              } catch {
+                Alert.alert('Error', 'Could not remove the card. Please try again.');
+              } finally {
+                setIsSaving(false);
+              }
             },
           },
         ]
       );
     },
-    [id, closeCardOverlay]
+    [id, closeCardOverlay, collection?.type]
   );
 
   const handleUploadCardImage = useCallback(async (cardId: string) => {
@@ -272,6 +346,8 @@ export default function BinderScreen() {
     setAddUserCardTargetName('');
     setAddUserCardSearch('');
     setAddUserCardCollectorNumber('');
+    setAddUserCardGradingService('');
+    setAddUserCardGrade('');
     setAddUserCardVariant('normal');
     setAddUserCardLanguages(collection?.languages?.length ? [...collection.languages] : ['en']);
     setAddUserCardVisible(true);
@@ -284,8 +360,24 @@ export default function BinderScreen() {
       Alert.alert('Enter a name', 'Card name is required.');
       return;
     }
-    const setName = addUserCardSetName.trim() || (collection.type === 'by_set' ? (collection.setName ?? 'Set') : 'Custom');
-    const localId = addUserCardCollectorNumber.trim() || undefined;
+    const setName =
+      addUserCardSetName.trim() ||
+      (collection.type === 'by_set' ? (collection.setName ?? 'Set') : collection.type === 'graded' ? '' : 'Custom');
+    if (collection.type === 'graded' && !setName) {
+      Alert.alert('Enter a set', 'Set name is required for graded cards.');
+      return;
+    }
+    const gradingService = addUserCardGradingService.trim();
+    const grade = addUserCardGrade.trim();
+    if (collection.type === 'graded' && !gradingService) {
+      Alert.alert('Enter a service', 'Grading service is required (e.g. PSA, CGC, BGS).');
+      return;
+    }
+    if (collection.type === 'graded' && !grade) {
+      Alert.alert('Select a grade', 'Grade is required.');
+      return;
+    }
+    const localId = collection.type === 'graded' ? undefined : (addUserCardCollectorNumber.trim() || undefined);
     setAddingUserCard(true);
     try {
       const cardId = `user-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -333,7 +425,15 @@ export default function BinderScreen() {
         await updateCollection(id, {
           userCards: {
             ...(collection.userCards ?? {}),
-            [cardId]: { name, setName, localId, variant },
+            [cardId]: {
+              name,
+              setName,
+              localId,
+              ...(collection.type === 'graded'
+                ? { gradingService, grade, grading: `${gradingService} ${grade}`.trim() }
+                : {}),
+              variant,
+            },
           },
         });
       } else {
@@ -346,6 +446,8 @@ export default function BinderScreen() {
       setAddUserCardName('');
       setAddUserCardSetName('');
       setAddUserCardCollectorNumber('');
+      setAddUserCardGradingService('');
+      setAddUserCardGrade('');
       setAddUserCardImageUri(null);
       setAddUserCardTargetSlotKey(null);
       setAddUserCardTargetName('');
@@ -363,7 +465,7 @@ export default function BinderScreen() {
     } finally {
       setAddingUserCard(false);
     }
-  }, [id, collection, addUserCardName, addUserCardSetName, addUserCardCollectorNumber, addUserCardImageUri, addUserCardTargetSlotKey, addUserCardTargetName, addUserCardLanguages, addUserCardVariant]);
+  }, [id, collection, addUserCardName, addUserCardSetName, addUserCardCollectorNumber, addUserCardGradingService, addUserCardGrade, addUserCardImageUri, addUserCardTargetSlotKey, addUserCardTargetName, addUserCardLanguages, addUserCardVariant]);
 
   const pickUserCardImage = useCallback(async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -445,10 +547,102 @@ export default function BinderScreen() {
           listManualCards(),
         ]);
         setDefaultCardOverrides(overrides);
-        const species: MasterListEntry[] =
+        // Base list (optionally expanded by configured form groups)
+        let speciesList: PokemonSummary[] =
           coll.type === 'master_set' || coll.type === 'master_dex'
             ? getExpandedSpeciesList(base, coll.masterSetOptions)
             : base;
+
+        // Set-aware Mega detection:
+        // If a specific set contains "Mega ..." or old-style "M ..." cards that aren't in our static mega list,
+        // add ONE mega slot per base Pokémon (and per X/Y) so the cards can be collected without creating duplicates
+        // like "M X", "Mega X", "Mega X ex" as separate entries.
+        if (coll.type === 'master_set' && coll.setId && coll.masterSetOptions?.megas) {
+          try {
+            const setData = await getSetWithCache(coll.setId, 'en');
+            const cards = setData.cards ?? [];
+
+            const normalizeMonName = (s: string): string => {
+              return (s ?? '')
+                .trim()
+                .toLowerCase()
+                // normalize punctuation/spacing so "Mr. Mime", "Farfetch’d", etc. match reliably
+                .replace(/[\u2019\u2018]/g, "'")
+                .replace(/[^a-z0-9]+/g, ' ')
+                .replace(/\s+/g, ' ')
+                .trim();
+            };
+
+            const dexIdByName = new Map<string, number>(base.map((p) => [normalizeMonName(p.name ?? ''), p.dexId]));
+            const seen = new Set(speciesList.map((p) => `${p.dexId}:${p.form ?? ''}`));
+            const extras: PokemonSummary[] = [];
+
+            const parseMega = (raw: string): { dexId: number; form: string; displayName: string } | null => {
+              let n = (raw ?? '').trim();
+              if (!n) return null;
+              let isMega = false;
+              if (n.startsWith('Mega ')) {
+                isMega = true;
+                n = n.slice(5).trim();
+              } else if (n.startsWith('M ')) {
+                isMega = true;
+                n = n.slice(2).trim();
+              } else if (n[0] === 'M' && n.length > 1 && n[1] === n[1].toUpperCase() && n[1] !== ' ') {
+                // "MCharizard", "Mmewtwo", etc.
+                isMega = true;
+                n = n.slice(1).trim();
+              }
+              if (!isMega) return null;
+
+              // Normalize separators and strip TCG suffixes (EX/ex/etc.)
+              n = n.replace(/[-–—]+/g, ' ');
+              n = n.replace(/\s+(ex|EX)\b.*$/g, '').trim();
+              n = n.replace(/\s+(V|VMAX|VSTAR)\b.*$/gi, '').trim();
+
+              // Optional X/Y suffix
+              let form: string = 'mega';
+              let xy: string = '';
+              const m = n.match(/^(.*)\s+([XY])$/i);
+              if (m) {
+                n = (m[1] ?? '').trim();
+                xy = ` ${String(m[2]).toUpperCase()}`;
+                form = `mega-${String(m[2]).toLowerCase()}`;
+              }
+
+              const baseName = n;
+              const dexId = dexIdByName.get(normalizeMonName(baseName));
+              if (!dexId) return null;
+              return { dexId, form, displayName: `Mega ${baseName}${xy}` };
+            };
+
+            // Set payload often doesn't include card names, so fetch full cards in batches and parse names there.
+            for (let i = 0; i < cards.length; i += 50) {
+              const batch = cards.slice(i, i + 50);
+              const ids = batch.map((c) => c.id);
+              const fullCards = await getCardsFull('en', ids);
+              for (const full of fullCards) {
+                const parsed = parseMega((full as any)?.name ?? '');
+                if (!parsed) continue;
+                const key = `${parsed.dexId}:${parsed.form}`;
+                if (seen.has(key)) continue;
+                extras.push({ dexId: parsed.dexId, name: parsed.displayName, form: parsed.form });
+                seen.add(key);
+              }
+            }
+
+            if (extras.length) {
+              speciesList = [...speciesList, ...extras].sort((a, b) => {
+                const aKey = a.form ? `${a.dexId}-${a.form}` : `${a.dexId}`;
+                const bKey = b.form ? `${b.dexId}-${b.form}` : `${b.dexId}`;
+                return aKey.localeCompare(bKey, undefined, { numeric: true });
+              });
+            }
+          } catch {
+            // ignore set-aware mega enrichment if set fetch fails
+          }
+        }
+
+        const species: MasterListEntry[] = speciesList;
         const customFromManual = manualCardsToCustomCards(manualCards);
         const allCustomCards = [...customCards, ...customFromManual];
         const customEntries: MasterListEntry[] = allCustomCards.map((card) => ({
@@ -458,10 +652,20 @@ export default function BinderScreen() {
           dexId: card.dexId,
           card,
         }));
+        const dexIdForEntry = (e: MasterListEntry): number => {
+          if ('type' in e) {
+            if (e.type === 'custom') return e.dexId;
+            const m = String(e.slotKey).match(/^(\d+)/);
+            return m ? parseInt(m[1], 10) : 99999;
+          }
+          return e.dexId;
+        };
         const merged = [...species, ...customEntries].sort((a, b) => {
           const aKey = getSlotKeyForEntry(a);
           const bKey = getSlotKeyForEntry(b);
-          if (a.dexId !== b.dexId) return a.dexId - b.dexId;
+          const aDex = dexIdForEntry(a);
+          const bDex = dexIdForEntry(b);
+          if (aDex !== bDex) return aDex - bDex;
           return aKey.localeCompare(bKey, undefined, { numeric: true });
         });
         setPokemonList(merged);
@@ -477,7 +681,7 @@ export default function BinderScreen() {
         setCardsLoadError('This set is not available.');
       } else {
       try {
-        const setData = await getSetWithCache(coll.setId, LANG);
+        const setData = await getSetWithCache(coll.setId, 'en');
         const cards = setData.cards ?? [];
         type SetCardWithVariant = AppCardBrief & { variant: CardVariant };
         const expanded: SetCardWithVariant[] = [];
@@ -490,7 +694,7 @@ export default function BinderScreen() {
             // Complete set = all variants the card has (normal, reverse, holo, 1st ed, etc.); set-level filters trim to what the set contains
             const fromCard = getVariantsFromCard(full);
             const afterSetCount = filterVariantsBySetCardCount(fromCard, setData.cardCount);
-            const afterRelease = filterVariantsBySetReleaseDate(afterSetCount, setData.releaseDate);
+            const afterRelease = filterVariantsBySetAndLanguage(afterSetCount, setData.name, LANG);
             const displayVariants = addMasterBallIfEligible(afterRelease, setData.id, full.localId, full);
             const variants = filterVariantsByEdition(displayVariants, coll.editionFilter);
             if (variants.length === 0) continue;
@@ -872,7 +1076,7 @@ export default function BinderScreen() {
               /* fall through to search */
             }
           }
-          if (!didSet && !isCustom) {
+          if (!didSet && !isCustom && !('type' in item)) {
             try {
               const searchName = getTcgSearchName(item);
               let cards = await getCardsByName(LANG, searchName, { exact: false });
@@ -912,11 +1116,12 @@ export default function BinderScreen() {
     const isMasterType = collection?.type === 'collect_them_all' || collection?.type === 'master_set' || collection?.type === 'master_dex';
     if (!isMasterType || pokemonList.length === 0) return;
     const filtered = filter
-      ? pokemonList.filter(
-          (p) =>
-            p.name.toLowerCase().includes(filter.toLowerCase()) ||
-            String(p.dexId).includes(filter)
-        )
+      ? pokemonList.filter((p) => {
+          const nameHit = p.name.toLowerCase().includes(filter.toLowerCase());
+          let dex = '';
+          if ('dexId' in p) dex = String(p.dexId);
+          return nameHit || dex.includes(filter);
+        })
       : pokemonList;
     setVisibleSlotKeys(filtered.slice(0, 18).map((p) => getSlotKeyForEntry(p)));
   }, [collection?.type, pokemonList, filter]);
@@ -949,13 +1154,18 @@ export default function BinderScreen() {
         const existing = (collection.slots ?? []).find((s) => s.key === slotKey);
         const isCollected = !!existing?.card;
         setIsSaving(true);
-        const updated = await setSlot(
-          id,
-          slotKey,
-          isCollected ? null : { cardId: cardId ?? slotKey, variant: variant ?? 'normal' }
-        );
-        setIsSaving(false);
-        if (updated) setCollection(updated);
+        try {
+          const updated = await setSlot(
+            id,
+            slotKey,
+            isCollected ? null : { cardId: cardId ?? slotKey, variant: variant ?? 'normal' }
+          );
+          if (updated) setCollection(updated);
+        } catch {
+          Alert.alert('Error', 'Could not save. Please check your connection and try again.');
+        } finally {
+          setIsSaving(false);
+        }
         return;
       }
       if (type === 'single_pokemon' || type === 'by_set') {
@@ -969,19 +1179,37 @@ export default function BinderScreen() {
         }
         const effectiveSlots =
           (collection.type === 'by_set' || collection.type === 'single_pokemon') && globalSlots != null
-            ? [...globalSlots, ...(collection.slots ?? []).filter((s) => s.key.startsWith('user-') || s.card?.cardId.startsWith('user-'))]
+            ? (() => {
+                const merged: Slot[] = [];
+                const seen = new Set<string>();
+                for (const s of globalSlots) {
+                  merged.push(s);
+                  seen.add(s.key);
+                }
+                for (const s of collection.slots ?? []) {
+                  if (seen.has(s.key)) continue;
+                  merged.push(s);
+                  seen.add(s.key);
+                }
+                return merged;
+              })()
             : (collection.slots ?? []);
         const effectiveCollection = { ...collection, slots: effectiveSlots };
         const slotCard = getSlotCard(effectiveCollection, slotKey);
         const isCollected = !!slotCard;
         setIsSaving(true);
-        const updated = await setSlot(
-          id,
-          slotKey,
-          isCollected ? null : { cardId: cardId ?? slotKey, variant: variant ?? 'normal' }
-        );
-        setIsSaving(false);
-        if (updated) setCollection(updated);
+        try {
+          const updated = await setSlot(
+            id,
+            slotKey,
+            isCollected ? null : { cardId: cardId ?? slotKey, variant: variant ?? 'normal' }
+          );
+          if (updated) setCollection(updated);
+        } catch {
+          Alert.alert('Error', 'Could not save. Please check your connection and try again.');
+        } finally {
+          setIsSaving(false);
+        }
         return;
       }
       if (
@@ -1118,7 +1346,25 @@ export default function BinderScreen() {
             return [...fromEntries, ...userSlots];
           })()
         : (collection.type === 'by_set' || collection.type === 'single_pokemon') && globalSlots != null
-        ? [...globalSlots, ...(collection.slots ?? []).filter((s) => s.key.startsWith('user-') || s.card?.cardId.startsWith('user-'))]
+        ? (() => {
+            const merged: Slot[] = [];
+            const byKey = new Map<string, Slot>();
+            for (const s of globalSlots) {
+              merged.push(s);
+              byKey.set(s.key, s);
+            }
+            for (const s of collection.slots ?? []) {
+              if (byKey.has(s.key)) {
+                const idx = merged.findIndex((x) => x.key === s.key);
+                if (idx >= 0) merged[idx] = s;
+                byKey.set(s.key, s);
+              } else {
+                merged.push(s);
+                byKey.set(s.key, s);
+              }
+            }
+            return merged;
+          })()
         : (collection.slots ?? []);
     const displaySlots = effectiveSlots.map((s) => {
       if (localRemovedSet.has(s.key)) return { ...s, card: null as SlotCard | null };
@@ -1218,7 +1464,7 @@ export default function BinderScreen() {
           imageUri: slotCard ? userOverrideUris[slotCard.cardId] ?? null : null,
         });
       }
-    } else if (collection.type === 'custom') {
+    } else if (collection.type === 'custom' || collection.type === 'graded') {
       const multiBriefBySlotKey = (collection.customPokemonNames?.length ?? 0) > 0
         ? new Map(customMultiEntries.map((e) => [e.slotKey, e.card]))
         : null;
@@ -1298,7 +1544,10 @@ export default function BinderScreen() {
     const customCard = masterPickerPokemon.customCard;
     if (customCard) {
       const editionFilter = collection.type === 'master_set' || collection.type === 'master_dex' ? collection.editionFilter : undefined;
-      const variants = filterVariantsByEdition(getDisplayVariants({ name: customCard.name, variants: customCard.variants }), editionFilter);
+      const variants = filterVariantsByEdition(
+        getDisplayVariants({ name: customCard.name, variants: customCard.variants as unknown as Record<string, boolean> }),
+        editionFilter
+      );
       const expanded: (AppCardBrief & { variant: CardVariant })[] = variants.map((variant) => ({
         id: customCard.id,
         name: customCard.name,
@@ -1311,8 +1560,8 @@ export default function BinderScreen() {
       setMasterPickerLoading(false);
       return;
     }
-    const langs = (collection.type === 'master_set' || collection.type === 'master_dex')
-      ? (collection.languages?.length ? collection.languages as TCGdexLang[] : ['en'])
+    const langs: TCGdexLang[] = (collection.type === 'master_set' || collection.type === 'master_dex')
+      ? (collection.languages?.length ? (collection.languages as TCGdexLang[]) : ['en'])
       : ['en'];
     const dexId = masterPickerPokemon.slotKey.includes('-')
       ? parseInt(masterPickerPokemon.slotKey.split('-')[0], 10)
@@ -1333,9 +1582,16 @@ export default function BinderScreen() {
         const formPart = isForm ? masterPickerPokemon.slotKey.split('-').slice(1).join('-') : undefined;
         const pickerSummary: PokemonSummary = { dexId: numericDexId ?? 0, name: masterPickerPokemon.name, form: formPart };
         for (const lang of langs) {
-          const searchName = isForm ? getTcgSearchName(pickerSummary) : (getSpeciesNameForLang(species, lang) ?? masterPickerPokemon.name);
+          // For form slots:
+          // - Mega/Primal and VMAX/Gmax should stay strict to their form
+          // - Other forms (e.g. Unown letters, Rotom, etc.) should allow choosing from the base Pokémon pool
+          const baseName = getSpeciesNameForLang(species, lang) ?? masterPickerPokemon.name;
+          const searchName =
+            isForm && (isMegaLikeForm(formPart) || isVmaxLikeForm(formPart))
+              ? getTcgSearchName(pickerSummary)
+              : baseName;
           let cards = await getCardsByName(lang, searchName, { exact: false });
-          if (isForm && formPart?.startsWith('mega')) {
+          if (isForm && isMegaLikeForm(formPart)) {
             const oldNames = getOldMegaSearchNames(pickerSummary);
             for (const oldName of oldNames) {
               const extra = await getCardsByName(lang, oldName, { exact: false });
@@ -1343,14 +1599,15 @@ export default function BinderScreen() {
               for (const c of extra ?? []) if (!seen.has(c.id)) { cards = [...(cards ?? []), c]; seen.add(c.id); }
             }
           } else {
-            cards = filterCardsByNameStrict(cards ?? [], searchName);
+            cards = filterCardsForBasePool(cards ?? [], searchName);
             cards = cards.filter((c) => !isOldMegaCardName(c.name ?? ''));
           }
           // PokeAPI has no Thai etc.; name search returns []. Resolve via English card IDs.
           if ((cards ?? []).length === 0 && lang !== 'en' && searchName) {
             let enCards = await getCardsByName('en', searchName, { exact: false });
-            if (!isForm) enCards = filterCardsByNameStrict(enCards ?? [], searchName).filter((c) => !isOldMegaCardName(c.name ?? ''));
-            else if (formPart?.startsWith('mega')) {
+            if (!isForm || !(isMegaLikeForm(formPart) || isVmaxLikeForm(formPart))) {
+              enCards = filterCardsForBasePool(enCards ?? [], searchName).filter((c) => !isOldMegaCardName(c.name ?? ''));
+            } else if (isMegaLikeForm(formPart)) {
               for (const oldName of getOldMegaSearchNames(pickerSummary)) {
                 const extra = await getCardsByName('en', oldName, { exact: false });
                 const seen = new Set((enCards ?? []).map((c) => c.id));
@@ -1449,7 +1706,7 @@ export default function BinderScreen() {
   }, [masterPickerVisible, masterPickerPokemon, collection?.type, collection?.languages, collection?.userCards]);
 
   const onViewableItemsChanged = useCallback(
-    ({ viewableItems }: { viewableItems: Array<{ item: PokemonSummary }> }) => {
+    ({ viewableItems }: { viewableItems: Array<{ item: MasterListEntry }> }) => {
       setVisibleSlotKeys(viewableItems.map((v) => getSlotKeyForEntry(v.item)));
     },
     []
@@ -1457,17 +1714,26 @@ export default function BinderScreen() {
   const handleDeleteBinder = useCallback(() => {
     if (!id || !collection) return;
     const label = getCollectionDisplayName(collection);
+    const filledCount = (collection.slots ?? []).filter((s) => s.card).length;
+    const cardNote =
+      filledCount > 0
+        ? `\n\nYou have ${filledCount} collected card${filledCount === 1 ? '' : 's'} that will be permanently removed.`
+        : '';
     Alert.alert(
       'Delete binder',
-      `Remove "${label}"? Your collected cards will be lost.`,
+      `Remove "${label}"?${cardNote}`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Delete',
+          text: filledCount > 0 ? `Delete (${filledCount} card${filledCount === 1 ? '' : 's'})` : 'Delete',
           style: 'destructive',
           onPress: async () => {
-            await deleteCollection(id);
-            router.replace('/(tabs)/binder');
+            try {
+              await deleteCollection(id);
+              router.replace('/(tabs)/binder');
+            } catch {
+              Alert.alert('Error', 'Could not delete this binder. Please try again.');
+            }
           },
         },
       ]
@@ -1484,14 +1750,16 @@ export default function BinderScreen() {
       collection?.type === 'master_set' ||
       collection?.type === 'master_dex' ||
       collection?.type === 'by_set' ||
-      collection?.type === 'custom';
+      collection?.type === 'custom' ||
+      collection?.type === 'graded';
     const showCardView =
       collection?.type === 'collect_them_all' ||
       collection?.type === 'master_set' ||
       collection?.type === 'master_dex' ||
       collection?.type === 'single_pokemon' ||
       collection?.type === 'by_set' ||
-      collection?.type === 'custom';
+      collection?.type === 'custom' ||
+      collection?.type === 'graded';
     if (showCardView) {
       const rightPadding = Math.max(insets.right, Platform.OS === 'ios' ? 8 : 4);
       navigation.setOptions({
@@ -1515,6 +1783,20 @@ export default function BinderScreen() {
             >
               <Text style={styles.exportButtonText}>Export</Text>
             </Pressable>
+            {isEditMode && (
+              <Pressable
+                onPress={() => {
+                  hapticLight();
+                  router.push(
+                    `/card-scan?collectionId=${id}&binderType=${collection?.type ?? ''}` as any
+                  );
+                }}
+                style={({ pressed }) => [styles.headerButton, pressed && styles.headerButtonPressed]}
+                hitSlop={8}
+              >
+                <Text style={styles.scanButtonText}>Scan</Text>
+              </Pressable>
+            )}
             {isEditMode && canDelete && (
               <Pressable
                 onPress={handleDeleteBinder}
@@ -1531,7 +1813,7 @@ export default function BinderScreen() {
     } else {
       navigation.setOptions({ headerRight: undefined, headerLeftContainerStyle: undefined, headerRightContainerStyle: undefined });
     }
-  }, [insets.left, insets.right, isEditMode, collection?.type, handleDeleteBinder, navigation, viewMode, setViewMode, isSubscriber, router, isSaving]);
+  }, [insets.left, insets.right, isEditMode, collection?.type, handleDeleteBinder, navigation, viewMode, setViewMode, isSubscriber, router, isSaving, id]);
 
   /** Variants that actually exist per card (from API). Must run on every render (before any return) to satisfy rules of hooks. */
   const validVariantsByCardId = useMemo(() => {
@@ -1587,7 +1869,27 @@ export default function BinderScreen() {
           return [...fromEntries, ...userSlots];
         })()
       : (collection.type === 'by_set' || collection.type === 'single_pokemon') && globalSlots != null
-      ? [...globalSlots, ...(collection.slots ?? []).filter((s) => s.key.startsWith('user-') || s.card?.cardId.startsWith('user-'))]
+      ? (() => {
+          const merged: Slot[] = [];
+          const byKey = new Map<string, Slot>();
+          // Preserve global ordering first
+          for (const s of globalSlots) {
+            merged.push(s);
+            byKey.set(s.key, s);
+          }
+          // Overlay/append actual saved slots so newly collected cards show up too
+          for (const s of collection.slots ?? []) {
+            if (byKey.has(s.key)) {
+              const idx = merged.findIndex((x) => x.key === s.key);
+              if (idx >= 0) merged[idx] = s;
+              byKey.set(s.key, s);
+            } else {
+              merged.push(s);
+              byKey.set(s.key, s);
+            }
+          }
+          return merged;
+        })()
       : (collection.slots ?? []);
   const displaySlots = effectiveSlots.map((s) => {
     if (localRemovedSet.has(s.key)) return { ...s, card: null as SlotCard | null };
@@ -1764,9 +2066,9 @@ export default function BinderScreen() {
             }}
           />
         ) : (
-        <FlatList
+        <FlatList<MasterListEntry>
           key="master-grid"
-          data={filtered}
+          data={filtered as MasterListEntry[]}
           numColumns={3}
           style={styles.listFill}
           keyExtractor={(item) => getSlotKeyForEntry(item)}
@@ -1825,14 +2127,17 @@ export default function BinderScreen() {
               >
                 <View style={[styles.gridCardInner, { width: gridCardLayout.width - 8, height: gridCardLayout.height - 8 }]}>
                   {showCardInGrid ? (
-                    <CachedImage
-                      remoteUri={displayUri}
-                      style={[styles.gridCardImage, !isCollected && styles.gridCardImageUnselected]}
-                      resizeMode="contain"
-                      cardId={slotCard?.cardId}
-                      overrideUri={slotCard ? userOverrideUris[slotCard.cardId] : undefined}
-                      onUploadImage={slotCard ? handleUploadCardImage : undefined}
-                    />
+                    <View style={styles.holoWrap}>
+                      <CachedImage
+                        remoteUri={displayUri}
+                        style={[styles.gridCardImage, !isCollected && styles.gridCardImageUnselected]}
+                        resizeMode="contain"
+                        cardId={slotCard?.cardId}
+                        overrideUri={slotCard ? userOverrideUris[slotCard.cardId] : undefined}
+                        onUploadImage={slotCard ? handleUploadCardImage : undefined}
+                      />
+                      {shouldShowHolo(slotCard, displayVariant) && <HoloSheen />}
+                    </View>
                   ) : showSpriteWhenUnpicked && spriteUri ? (
                     <Image
                       source={{ uri: spriteUri }}
@@ -1844,14 +2149,17 @@ export default function BinderScreen() {
                       resizeMode="contain"
                     />
                   ) : (
-                    <CachedImage
-                      remoteUri={displayUri}
-                      style={[styles.gridCardImage, !isCollected && styles.gridCardImageUnselected]}
-                      resizeMode="contain"
-                      cardId={slotCard?.cardId}
-                      overrideUri={slotCard ? userOverrideUris[slotCard.cardId] : undefined}
-                      onUploadImage={slotCard ? handleUploadCardImage : undefined}
-                    />
+                    <View style={styles.holoWrap}>
+                      <CachedImage
+                        remoteUri={displayUri}
+                        style={[styles.gridCardImage, !isCollected && styles.gridCardImageUnselected]}
+                        resizeMode="contain"
+                        cardId={slotCard?.cardId}
+                        overrideUri={slotCard ? userOverrideUris[slotCard.cardId] : undefined}
+                        onUploadImage={slotCard ? handleUploadCardImage : undefined}
+                      />
+                      {shouldShowHolo(slotCard, displayVariant) && <HoloSheen />}
+                    </View>
                   )}
                   <View style={styles.cardRibbon} pointerEvents="none">
                     <Text style={styles.cardRibbonText} numberOfLines={1}>
@@ -1878,13 +2186,20 @@ export default function BinderScreen() {
                   <View style={styles.cardOverlayCardRow}>
                     <View style={styles.cardOverlayCardWrap}>
                       {cardOverlay.imageUri || cardOverlay.cardId ? (
-                        <CachedImage
-                          remoteUri={cardOverlay.imageUri ?? undefined}
-                          style={styles.cardOverlayImage}
-                          resizeMode="contain"
-                          cardId={cardOverlay.cardId}
-                          overrideUri={cardOverlay.cardId ? userOverrideUris[cardOverlay.cardId] : undefined}
-                        />
+                        <View style={styles.holoWrap}>
+                          <CachedImage
+                            remoteUri={cardOverlay.imageUri ?? undefined}
+                            style={styles.cardOverlayImage}
+                            resizeMode="contain"
+                            cardId={cardOverlay.cardId}
+                            overrideUri={cardOverlay.cardId ? userOverrideUris[cardOverlay.cardId] : undefined}
+                          />
+                          {(() => {
+                            const slotCard = cardOverlay.slotKey ? getSlotCard(collection, cardOverlay.slotKey) : null;
+                            const variant = slotCard?.variant ?? cardOverlay.variant;
+                            return shouldShowHolo(slotCard, variant) ? <HoloSheen intensity={0.85} /> : null;
+                          })()}
+                        </View>
                       ) : (
                         <View style={styles.cardOverlayPlaceholder} />
                       )}
@@ -1894,9 +2209,34 @@ export default function BinderScreen() {
                     <View style={styles.cardOverlayInfo}>
                       <Text style={styles.cardOverlayInfoTitle}>{cardOverlay.cardName}</Text>
                       <Text style={styles.cardOverlayInfoRow}>Set: {cardOverlay.setLabel}</Text>
-                      <Text style={styles.cardOverlayInfoRow}>Collector #: {cardOverlay.collectorNumber}</Text>
+                      <Text style={styles.cardOverlayInfoRow}>
+                        {collection.type === 'graded' ? 'Grade' : 'Collector #'}: {cardOverlay.collectorNumber}
+                      </Text>
                       {cardOverlay.variant != null && cardOverlay.variant !== 'normal' && (
                         <Text style={styles.cardOverlayInfoRow}>Variant: {getVariantLabel(cardOverlay.variant)}</Text>
+                      )}
+                      {isEditMode && cardOverlay.slotKey != null && (
+                        (() => {
+                          const slotCard = getSlotCard(collection, cardOverlay.slotKey!);
+                          const variant = slotCard?.variant ?? cardOverlay.variant;
+                          if (!isHoloVariant(variant)) return null;
+                          const value = slotCard?.holoEffect ?? true;
+                          return (
+                            <View style={styles.cardOverlayToggleRow}>
+                              <Text style={styles.cardOverlayInfoRow}>Holo effect</Text>
+                              <Switch
+                                value={value}
+                                onValueChange={async (next) => {
+                                  if (!id || !cardOverlay?.slotKey) return;
+                                  const sc = getSlotCard(collection, cardOverlay.slotKey);
+                                  if (!sc) return;
+                                  const updated = await setSlot(id, cardOverlay.slotKey, { ...sc, holoEffect: next });
+                                  if (updated) setCollection(updated);
+                                }}
+                              />
+                            </View>
+                          );
+                        })()
                       )}
                     </View>
                     <View style={styles.cardOverlayActions}>
@@ -1917,6 +2257,25 @@ export default function BinderScreen() {
                             {cardOverlay.collectorNumber === NO_VERSION_SELECTED ? 'Select version' : 'Change version'}
                           </Text>
                         </Pressable>
+                      )}
+                      {isEditMode && cardOverlay.slotKey != null && !cardOverlay.slotKey.startsWith('user-') && (
+                        (() => {
+                          const sc = getSlotCard(collection, cardOverlay.slotKey!);
+                          if (!sc) return null;
+                          return (
+                            <Pressable
+                              style={({ pressed }) => [styles.cardOverlayCloseBtn, styles.cardOverlayDeleteBtn, pressed && styles.rowPressed]}
+                              onPress={async () => {
+                                if (!id) return;
+                                const updated = await setSlot(id, cardOverlay.slotKey!, null);
+                                if (updated) setCollection(updated);
+                                closeCardOverlay();
+                              }}
+                            >
+                              <Text style={styles.cardOverlayDeleteText}>Uncollect</Text>
+                            </Pressable>
+                          );
+                        })()
                       )}
                       <Pressable
                         style={({ pressed }) => [styles.cardOverlayCloseBtn, pressed && styles.rowPressed]}
@@ -2035,43 +2394,45 @@ export default function BinderScreen() {
                   <Text style={styles.masterPickerHint}>Loading card images…</Text>
                 </View>
               ) : (
-                <ScrollView
+                <FlatList
                   style={styles.masterPickerScroll}
                   contentContainerStyle={styles.masterPickerScrollContent}
+                  data={masterPickerCards.filter((c) => !excludedVersionsSet.has(cardVersionKey(c.id, c.variant)))}
+                  keyExtractor={(card) => cardSlotKey(card.id, card.variant)}
+                  numColumns={3}
                   showsVerticalScrollIndicator
-                >
-                  <View style={styles.masterPickerGrid}>
-                    {masterPickerCards
-                      .filter((c) => !excludedVersionsSet.has(cardVersionKey(c.id, c.variant)))
-                      .map((card) => {
-                      const variantLabel = card.variant !== 'normal' ? ` • ${getVariantLabel(card.variant)}` : '';
-                      return (
-                        <Pressable
-                          key={cardSlotKey(card.id, card.variant)}
-                          style={({ pressed }) => [
-                            styles.masterPickerCell,
-                            pressed && styles.rowPressed,
-                          ]}
-                          onPress={() => onMasterPickCard(card.id, card.variant)}
-                        >
-                          <CachedImage
-                            remoteUri={card.image ? (normalizeTcgdexImageUrl(card.image) ?? card.image) : null}
-                            style={styles.masterPickerCardImage}
-                            resizeMode="contain"
-                            cardId={card.id}
-                            overrideUri={userOverrideUris[card.id]}
-                            onUploadImage={handleUploadCardImage}
-                          />
-                          <View style={styles.cardRibbon} pointerEvents="none">
-                            <Text style={styles.cardRibbonText} numberOfLines={2}>
-                              {getSetDisplayName(card.set?.id ?? setIdFromCardId(card.id), setNamesById)} • #{card.localId ?? collectorNumberFromCardId(card.id)}{variantLabel}
-                            </Text>
-                          </View>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                </ScrollView>
+                  // FlatList inside a modal can "blank out" items on long lists (e.g. Unown) when clipping is enabled.
+                  removeClippedSubviews={false}
+                  initialNumToRender={24}
+                  windowSize={7}
+                  maxToRenderPerBatch={24}
+                  updateCellsBatchingPeriod={50}
+                  renderItem={({ item: card }) => {
+                    const variantLabel = card.variant !== 'normal' ? ` • ${getVariantLabel(card.variant)}` : '';
+                    return (
+                      <Pressable
+                        style={({ pressed }) => [styles.masterPickerCell, pressed && styles.rowPressed]}
+                        onPress={() => onMasterPickCard(card.id, card.variant)}
+                      >
+                        <CachedImage
+                          remoteUri={card.image ? (normalizeTcgdexImageUrl(card.image) ?? card.image) : null}
+                          style={styles.masterPickerCardImage}
+                          resizeMode="contain"
+                          cardId={card.id}
+                          overrideUri={userOverrideUris[card.id]}
+                          onUploadImage={handleUploadCardImage}
+                        />
+                        <View style={styles.cardRibbon} pointerEvents="none">
+                          <Text style={styles.cardRibbonText} numberOfLines={2}>
+                            {getSetDisplayName(card.set?.id ?? setIdFromCardId(card.id), setNamesById)} • #
+                            {card.localId ?? collectorNumberFromCardId(card.id)}
+                            {variantLabel}
+                          </Text>
+                        </View>
+                      </Pressable>
+                    );
+                  }}
+                />
               )}
               <Pressable
                 style={({ pressed }) => [styles.masterPickerCloseBtn, pressed && styles.rowPressed]}
@@ -2141,38 +2502,54 @@ export default function BinderScreen() {
         (c) => !excludedVersionsSet.has(cardVersionKey(c.id, c.variant))
       );
     }
-    const langSections: { title: string; lang: string; data: { lang: string; row: (AppCardBrief & { variant: CardVariant })[] }[] }[] = langs.map((lang) => ({
+    type SingleRowGroup = { lang: string; row: unknown[] };
+    type SingleSection = { title: string; lang: string; data: SingleRowGroup[] };
+
+    const langSections: SingleSection[] = langs.map((lang) => ({
       title: LANGUAGE_OPTIONS.find((o) => o.id === lang)?.label ?? lang,
       lang,
       data: chunk(printingsFilteredByLang[lang] ?? [], 3).map((row) => ({ lang, row })),
     }));
-    type UserRow = { lang: 'user'; row: { type: 'user'; slotKey: string; name: string; cardId: string }[] };
     const userSection = userEntriesSingle.length > 0
-      ? [{ title: 'Your cards', lang: 'user' as const, data: chunk(userEntriesSingle, 3).map((row) => ({ lang: 'user' as const, row })) as UserRow['data'] }]
+      ? [{ title: 'Your cards', lang: 'user', data: chunk(userEntriesSingle, 3).map((row) => ({ lang: 'user', row })) }]
       : [];
-    const sections = [...langSections, ...userSection];
+    const sections: SingleSection[] = [...langSections, ...(userSection as SingleSection[])];
     type FlatSingleItem =
       | { key: string; sectionTitle: string; type: 'user'; slotKey: string; name: string; cardId: string }
       | { key: string; sectionTitle: string; type: 'card'; lang: string; card: AppCardBrief & { variant: CardVariant } };
-    const flatSingleItems: FlatSingleItem[] = sections.flatMap((s) =>
-      s.data.flatMap((d) => {
-        if (d.lang === 'user' && d.row.length > 0 && d.row[0] && 'cardId' in d.row[0]) {
-          return (d.row as { slotKey: string; name: string; cardId: string }[]).map((ue) => ({
-            key: ue.slotKey,
-            sectionTitle: s.title,
-            type: 'user' as const,
-            ...ue,
-          }));
+    const flatSingleItems: FlatSingleItem[] = [];
+    for (const s of sections as SingleSection[]) {
+      for (const d of s.data as SingleRowGroup[]) {
+        const first = d.row?.[0] as unknown;
+        const isUserRow =
+          d.lang === 'user' &&
+          first != null &&
+          typeof first === 'object' &&
+          'cardId' in (first as Record<string, unknown>);
+
+        if (isUserRow) {
+          for (const ue of d.row as unknown as { slotKey: string; name: string; cardId: string }[]) {
+            flatSingleItems.push({
+              key: ue.slotKey,
+              sectionTitle: s.title,
+              type: 'user',
+              ...ue,
+            });
+          }
+          continue;
         }
-        return (d.row as (AppCardBrief & { variant: CardVariant })[]).map((card) => ({
-          key: singlePokemonSlotKey(d.lang, card.id, card.variant),
-          sectionTitle: s.title,
-          type: 'card' as const,
-          lang: d.lang,
-          card,
-        }));
-      })
-    );
+
+        for (const card of d.row as unknown as (AppCardBrief & { variant: CardVariant })[]) {
+          flatSingleItems.push({
+            key: singlePokemonSlotKey(d.lang, card.id, card.variant),
+            sectionTitle: s.title,
+            type: 'card',
+            lang: d.lang,
+            card,
+          });
+        }
+      }
+    }
     const totalPrintings = langSections.reduce((sum, s) => sum + s.data.reduce((rowSum, r) => rowSum + r.row.length, 0), 0) + userEntriesSingle.length;
     const filledCount = effectiveCollection.slots.filter((s) => s.card).length;
     const progressPct = totalPrintings > 0 ? filledCount / totalPrintings : 0;
@@ -2314,8 +2691,8 @@ export default function BinderScreen() {
             style={styles.listFill}
             keyExtractor={(item) =>
               item.lang === 'user'
-                ? 'user-' + (item.row as { slotKey: string }[]).map((c) => c.slotKey).join('-')
-                : item.lang + '-' + (item.row as (AppCardBrief & { variant: CardVariant })[]).map((c) => cardSlotKey(c.id, c.variant)).join('-')
+                ? 'user-' + (item.row as unknown as { slotKey: string }[]).map((c) => c.slotKey).join('-')
+                : item.lang + '-' + (item.row as unknown as (AppCardBrief & { variant: CardVariant })[]).map((c) => cardSlotKey(c.id, c.variant)).join('-')
             }
             stickySectionHeadersEnabled
             renderSectionHeader={({ section }) => (
@@ -2325,7 +2702,14 @@ export default function BinderScreen() {
             )}
             renderItem={({ item }) => {
               const { lang, row } = item;
-              if (lang === 'user' && row.length > 0 && row[0] && 'cardId' in row[0]) {
+              const first = row?.[0] as unknown;
+              const isUserRow =
+                lang === 'user' &&
+                first != null &&
+                typeof first === 'object' &&
+                'cardId' in (first as Record<string, unknown>);
+
+              if (isUserRow) {
                 const userRow = row as { type: 'user'; slotKey: string; name: string; cardId: string }[];
                 return (
                   <View style={styles.gridRow}>
@@ -2442,49 +2826,126 @@ export default function BinderScreen() {
           <Pressable style={styles.masterPickerBackdrop} onPress={() => setAddUserCardVisible(false)}>
             <Pressable style={styles.masterPickerCard} onPress={(e) => e.stopPropagation()}>
               <ScrollView style={styles.addUserCardScroll} contentContainerStyle={styles.addUserCardScrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator>
-                <Text style={styles.masterPickerTitle}>Add a missing card</Text>
-                <Text style={styles.addUserCardHint}>
-                  Add a custom card. Choose which languages to add it to (it will appear in those sections).
+                <Text style={styles.masterPickerTitle}>
+                  {(collection as any).type === 'graded' ? 'Add graded card' : 'Add a missing card'}
                 </Text>
+                {(collection as any).type === 'graded' ? (
+                  <Text style={styles.addUserCardHint}>
+                    Enter the card details and grade, then attach a photo of the slab/card.
+                  </Text>
+                ) : (
+                  <Text style={styles.addUserCardHint}>
+                    Add a custom card. Choose which languages to add it to (it will appear in those sections).
+                  </Text>
+                )}
+
                 <Text style={styles.addUserCardLabel}>Card name</Text>
-                <TextInput style={styles.addUserCardInput} placeholderTextColor="#888" placeholder="Card name" value={addUserCardName} onChangeText={setAddUserCardName} />
+                <TextInput
+                  style={styles.addUserCardInput}
+                  placeholderTextColor="#888"
+                  placeholder="Card name"
+                  value={addUserCardName}
+                  onChangeText={setAddUserCardName}
+                />
                 <Text style={styles.addUserCardLabel}>Set name</Text>
-                <TextInput style={styles.addUserCardInput} placeholderTextColor="#888" placeholder="Set name" value={addUserCardSetName} onChangeText={setAddUserCardSetName} />
-                <Text style={styles.addUserCardLabel}>Collector number</Text>
-                <TextInput style={styles.addUserCardInput} placeholderTextColor="#888" placeholder="#" value={addUserCardCollectorNumber} onChangeText={setAddUserCardCollectorNumber} keyboardType="numeric" />
-                <Text style={styles.addUserCardLabel}>Variation</Text>
-                <ScrollView horizontal style={{ marginBottom: 12 }} showsHorizontalScrollIndicator={false} nestedScrollEnabled>
-                  {CARD_VARIANTS.map((v) => {
-                    const selected = addUserCardVariant === v;
-                    return (
-                      <Pressable
-                        key={v}
-                        style={[styles.addUserCardPickRow, { marginRight: 8, marginBottom: 0 }, selected && styles.addUserCardPickRowSelected]}
-                        onPress={() => setAddUserCardVariant(v)}
-                      >
-                        <Text style={styles.addUserCardPickRowText}>{getVariantLabel(v)}</Text>
-                        {selected && <Text style={styles.addUserCardPickRowCheck}>✓</Text>}
-                      </Pressable>
-                    );
-                  })}
-                </ScrollView>
-                <Text style={styles.addUserCardLabel}>Languages</Text>
-                <ScrollView horizontal style={{ marginBottom: 12 }} showsHorizontalScrollIndicator={false} nestedScrollEnabled>
-                  {(collection.languages?.length ? collection.languages : ['en']).map((langId) => {
-                    const label = LANGUAGE_OPTIONS.find((o) => o.id === langId)?.label ?? langId;
-                    const selected = addUserCardLanguages.includes(langId);
-                    return (
-                      <Pressable
-                        key={langId}
-                        style={[styles.addUserCardPickRow, { marginRight: 8, marginBottom: 0 }, selected && styles.addUserCardPickRowSelected]}
-                        onPress={() => setAddUserCardLanguages((prev) => (prev.includes(langId) ? prev.filter((l) => l !== langId) : [...prev, langId]))}
-                      >
-                        <Text style={styles.addUserCardPickRowText}>{label}</Text>
-                        {selected && <Text style={styles.addUserCardPickRowCheck}>✓</Text>}
-                      </Pressable>
-                    );
-                  })}
-                </ScrollView>
+                <TextInput
+                  style={styles.addUserCardInput}
+                  placeholderTextColor="#888"
+                  placeholder="Set name"
+                  value={addUserCardSetName}
+                  onChangeText={setAddUserCardSetName}
+                />
+
+                {(collection as any).type === 'graded' ? (
+                  <>
+                    <Text style={styles.addUserCardLabel}>Grading service</Text>
+                    <TextInput
+                      style={styles.addUserCardInput}
+                      placeholderTextColor="#888"
+                      placeholder='e.g. "PSA", "CGC", "BGS"'
+                      value={addUserCardGradingService}
+                      onChangeText={setAddUserCardGradingService}
+                      autoCapitalize="characters"
+                    />
+                    <Text style={styles.addUserCardLabel}>Grade (PSA scale)</Text>
+                    <ScrollView horizontal style={{ marginBottom: 12 }} showsHorizontalScrollIndicator={false} nestedScrollEnabled>
+                      {PSA_GRADE_OPTIONS.map((g) => {
+                        const selected = addUserCardGrade === g;
+                        return (
+                          <Pressable
+                            key={g}
+                            style={[
+                              styles.addUserCardPickRow,
+                              { marginRight: 8, marginBottom: 0 },
+                              selected && styles.addUserCardPickRowSelected,
+                            ]}
+                            onPress={() => setAddUserCardGrade(g)}
+                          >
+                            <Text style={styles.addUserCardPickRowText}>{g}</Text>
+                            {selected && <Text style={styles.addUserCardPickRowCheck}>✓</Text>}
+                          </Pressable>
+                        );
+                      })}
+                    </ScrollView>
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.addUserCardLabel}>Collector number</Text>
+                    <TextInput
+                      style={styles.addUserCardInput}
+                      placeholderTextColor="#888"
+                      placeholder="#"
+                      value={addUserCardCollectorNumber}
+                      onChangeText={setAddUserCardCollectorNumber}
+                      keyboardType="numeric"
+                    />
+                    <Text style={styles.addUserCardLabel}>Variation</Text>
+                    <ScrollView horizontal style={{ marginBottom: 12 }} showsHorizontalScrollIndicator={false} nestedScrollEnabled>
+                      {CARD_VARIANTS.map((v) => {
+                        const selected = addUserCardVariant === v;
+                        return (
+                          <Pressable
+                            key={v}
+                            style={[
+                              styles.addUserCardPickRow,
+                              { marginRight: 8, marginBottom: 0 },
+                              selected && styles.addUserCardPickRowSelected,
+                            ]}
+                            onPress={() => setAddUserCardVariant(v)}
+                          >
+                            <Text style={styles.addUserCardPickRowText}>{getVariantLabel(v)}</Text>
+                            {selected && <Text style={styles.addUserCardPickRowCheck}>✓</Text>}
+                          </Pressable>
+                        );
+                      })}
+                    </ScrollView>
+                    <Text style={styles.addUserCardLabel}>Languages</Text>
+                    <ScrollView horizontal style={{ marginBottom: 12 }} showsHorizontalScrollIndicator={false} nestedScrollEnabled>
+                      {(collection.languages?.length ? collection.languages : ['en']).map((langId) => {
+                        const label = LANGUAGE_OPTIONS.find((o) => o.id === langId)?.label ?? langId;
+                        const selected = addUserCardLanguages.includes(langId);
+                        return (
+                          <Pressable
+                            key={langId}
+                            style={[
+                              styles.addUserCardPickRow,
+                              { marginRight: 8, marginBottom: 0 },
+                              selected && styles.addUserCardPickRowSelected,
+                            ]}
+                            onPress={() =>
+                              setAddUserCardLanguages((prev) =>
+                                prev.includes(langId) ? prev.filter((l) => l !== langId) : [...prev, langId]
+                              )
+                            }
+                          >
+                            <Text style={styles.addUserCardPickRowText}>{label}</Text>
+                            {selected && <Text style={styles.addUserCardPickRowCheck}>✓</Text>}
+                          </Pressable>
+                        );
+                      })}
+                    </ScrollView>
+                  </>
+                )}
                 <Pressable style={styles.addUserCardImageBtn} onPress={pickUserCardImage}>
                   {addUserCardImageUri ? (
                     <Image source={{ uri: addUserCardImageUri }} style={styles.addUserCardThumb} resizeMode="contain" />
@@ -2516,13 +2977,20 @@ export default function BinderScreen() {
                   <View style={styles.cardOverlayCardRow}>
                     <View style={styles.cardOverlayCardWrap}>
                       {cardOverlay.imageUri || cardOverlay.cardId ? (
-                        <CachedImage
-                          remoteUri={cardOverlay.imageUri ?? undefined}
-                          style={styles.cardOverlayImage}
-                          resizeMode="contain"
-                          cardId={cardOverlay.cardId}
-                          overrideUri={cardOverlay.cardId ? userOverrideUris[cardOverlay.cardId] : undefined}
-                        />
+                        <View style={styles.holoWrap}>
+                          <CachedImage
+                            remoteUri={cardOverlay.imageUri ?? undefined}
+                            style={styles.cardOverlayImage}
+                            resizeMode="contain"
+                            cardId={cardOverlay.cardId}
+                            overrideUri={cardOverlay.cardId ? userOverrideUris[cardOverlay.cardId] : undefined}
+                          />
+                          {(() => {
+                            const slotCard = cardOverlay.slotKey ? getSlotCard(collection, cardOverlay.slotKey) : null;
+                            const variant = slotCard?.variant ?? cardOverlay.variant;
+                            return shouldShowHolo(slotCard, variant) ? <HoloSheen intensity={0.85} /> : null;
+                          })()}
+                        </View>
                       ) : (
                         <View style={styles.cardOverlayPlaceholder} />
                       )}
@@ -2532,7 +3000,9 @@ export default function BinderScreen() {
                     <View style={styles.cardOverlayInfo}>
                       <Text style={styles.cardOverlayInfoTitle}>{cardOverlay.cardName}</Text>
                       <Text style={styles.cardOverlayInfoRow}>Set: {cardOverlay.setLabel}</Text>
-                      <Text style={styles.cardOverlayInfoRow}>Collector #: {cardOverlay.collectorNumber}</Text>
+                      <Text style={styles.cardOverlayInfoRow}>
+                        {(collection as any).type === 'graded' ? 'Grade' : 'Collector #'}: {cardOverlay.collectorNumber}
+                      </Text>
                     </View>
                     <View style={styles.cardOverlayActions}>
                       <Pressable style={({ pressed }) => [styles.cardOverlayCloseBtn, pressed && styles.rowPressed]} onPress={closeCardOverlay}>
@@ -2670,10 +3140,14 @@ export default function BinderScreen() {
                   const slotKey = cardSlotKey(card.id, card.variant);
                   const slotCard = getSlotCard(effectiveCollection, slotKey) ?? (card.variant === 'normal' ? getSlotCard(effectiveCollection, card.id) : null);
                   const isCollected = !!slotCard;
-                  const isUserCard = slotCard?.cardId.startsWith('user-');
-                  const displayName = isUserCard ? (collection.userCards?.[slotCard.cardId]?.name ?? card.name) : card.name;
+                  const isUserCard = !!slotCard && slotCard.cardId.startsWith('user-');
+                  const displayName = isUserCard
+                    ? (collection.userCards?.[slotCard!.cardId]?.name ?? card.name)
+                    : card.name;
                   const setLabel = (collection.setName ?? getSetDisplayName(collection.setId ?? '', setNamesById)) || 'Set';
-                  const collectorNum = isUserCard ? (collection.userCards?.[slotCard.cardId]?.localId ?? '—') : (card.localId ?? collectorNumberFromCardId(card.id));
+                  const collectorNum = isUserCard
+                    ? (collection.userCards?.[slotCard!.cardId]?.localId ?? '—')
+                    : (card.localId ?? collectorNumberFromCardId(card.id));
                   const variantLabel = card.variant !== 'normal' ? ` • ${getVariantLabel(card.variant)}` : '';
                   const imageUri = isUserCard && slotCard ? userOverrideUris[slotCard.cardId] : (card.image ? (normalizeTcgdexImageUrl(card.image) ?? card.image) : null);
                   return (
@@ -2718,10 +3192,14 @@ export default function BinderScreen() {
                     const slotKey = cardSlotKey(card.id, card.variant);
                     const slotCard = getSlotCard(effectiveCollection, slotKey) ?? (card.variant === 'normal' ? getSlotCard(effectiveCollection, card.id) : null);
                     const isCollected = !!slotCard;
-                    const isUserCard = slotCard?.cardId.startsWith('user-');
-                    const displayName = isUserCard ? (collection.userCards?.[slotCard.cardId]?.name ?? card.name) : card.name;
+                    const isUserCard = !!slotCard && slotCard.cardId.startsWith('user-');
+                    const displayName = isUserCard
+                      ? (collection.userCards?.[slotCard!.cardId]?.name ?? card.name)
+                      : card.name;
                     const setLabel = (collection.setName ?? getSetDisplayName(collection.setId ?? '', setNamesById)) || 'Set';
-                    const collectorNum = isUserCard ? (collection.userCards?.[slotCard.cardId]?.localId ?? '—') : (card.localId ?? collectorNumberFromCardId(card.id));
+                    const collectorNum = isUserCard
+                      ? (collection.userCards?.[slotCard!.cardId]?.localId ?? '—')
+                      : (card.localId ?? collectorNumberFromCardId(card.id));
                     const variantLabel = card.variant !== 'normal' ? ` (${getVariantLabel(card.variant)})` : '';
                     const imageUri = isUserCard && slotCard ? userOverrideUris[slotCard.cardId] : (card.image ? (normalizeTcgdexImageUrl(card.image) ?? card.image) : null);
                     return (
@@ -2737,7 +3215,7 @@ export default function BinderScreen() {
                             openCardOverlay({
                               imageUri: imageUri ?? null,
                               cardName: displayName + variantLabel,
-                              setLabel: isUserCard ? (collection.userCards?.[slotCard.cardId]?.setName ?? setLabel) : setLabel,
+                              setLabel: isUserCard ? (collection.userCards?.[slotCard!.cardId]?.setName ?? setLabel) : setLabel,
                               collectorNumber: collectorNum,
                               cardId: slotCard?.cardId ?? card.id,
                               variant: slotCard?.variant ?? card.variant,
@@ -2747,14 +3225,17 @@ export default function BinderScreen() {
                         onLongPress={() => handleLongPressCard(slotKey, slotCard?.cardId ?? card.id, slotCard?.variant ?? card.variant)}
                       >
                         <View style={[styles.gridCardInner, { width: gridCardLayout.width - 8, height: gridCardLayout.height - 8 }]}>
-                          <CachedImage
-                            remoteUri={imageUri ?? undefined}
-                            style={[styles.gridCardImage, !isCollected && styles.gridCardImageUnselected]}
-                            resizeMode="contain"
-                            cardId={slotCard?.cardId ?? card.id}
-                            overrideUri={userOverrideUris[slotCard?.cardId ?? card.id]}
-                            onUploadImage={handleUploadCardImage}
-                          />
+                          <View style={styles.holoWrap}>
+                            <CachedImage
+                              remoteUri={imageUri ?? undefined}
+                              style={[styles.gridCardImage, !isCollected && styles.gridCardImageUnselected]}
+                              resizeMode="contain"
+                              cardId={slotCard?.cardId ?? card.id}
+                              overrideUri={userOverrideUris[slotCard?.cardId ?? card.id]}
+                              onUploadImage={handleUploadCardImage}
+                            />
+                            {shouldShowHolo(slotCard, slotCard?.variant ?? card.variant) && <HoloSheen intensity={0.8} />}
+                          </View>
                           <View style={styles.cardRibbon} pointerEvents="none">
                             <Text style={styles.cardRibbonText} numberOfLines={1}>
                               {displayName}
@@ -2845,7 +3326,17 @@ export default function BinderScreen() {
                 <View style={styles.masterPickerGrid}>
                   {setVersionPickerCards.map((card) => (
                     <Pressable key={cardSlotKey(card.id, card.variant)} style={({ pressed }) => [styles.masterPickerCell, pressed && styles.rowPressed]} onPress={() => onSetVersionPick(card.id, card.variant)}>
-                      <CachedImage remoteUri={card.image ? (normalizeTcgdexImageUrl(card.image) ?? card.image) : null} style={styles.masterPickerCardImage} resizeMode="contain" cardId={card.id} overrideUri={userOverrideUris[card.id]} onUploadImage={handleUploadCardImage} />
+                      <View style={styles.holoWrap}>
+                        <CachedImage
+                          remoteUri={card.image ? (normalizeTcgdexImageUrl(card.image) ?? card.image) : null}
+                          style={styles.masterPickerCardImage}
+                          resizeMode="contain"
+                          cardId={card.id}
+                          overrideUri={userOverrideUris[card.id]}
+                          onUploadImage={handleUploadCardImage}
+                        />
+                        {isHoloVariant(card.variant) && <HoloSheen intensity={0.8} />}
+                      </View>
                       <View style={styles.cardRibbon} pointerEvents="none">
                         <Text style={styles.cardRibbonText} numberOfLines={2}>{card.set?.name ?? 'Custom'} • #{card.localId ?? '—'}{card.variant !== 'normal' ? ` • ${getVariantLabel(card.variant)}` : ''}</Text>
                       </View>
@@ -2867,13 +3358,20 @@ export default function BinderScreen() {
                   <View style={styles.cardOverlayCardRow}>
                     <View style={styles.cardOverlayCardWrap}>
                       {cardOverlay.imageUri || cardOverlay.cardId ? (
-                        <CachedImage
-                          remoteUri={cardOverlay.imageUri ?? undefined}
-                          style={styles.cardOverlayImage}
-                          resizeMode="contain"
-                          cardId={cardOverlay.cardId}
-                          overrideUri={cardOverlay.cardId ? userOverrideUris[cardOverlay.cardId] : undefined}
-                        />
+                        <View style={styles.holoWrap}>
+                          <CachedImage
+                            remoteUri={cardOverlay.imageUri ?? undefined}
+                            style={styles.cardOverlayImage}
+                            resizeMode="contain"
+                            cardId={cardOverlay.cardId}
+                            overrideUri={cardOverlay.cardId ? userOverrideUris[cardOverlay.cardId] : undefined}
+                          />
+                          {(() => {
+                            const slotCard = cardOverlay.slotKey ? getSlotCard(collection, cardOverlay.slotKey) : null;
+                            const variant = slotCard?.variant ?? cardOverlay.variant;
+                            return shouldShowHolo(slotCard, variant) ? <HoloSheen intensity={0.85} /> : null;
+                          })()}
+                        </View>
                       ) : (
                         <View style={styles.cardOverlayPlaceholder} />
                       )}
@@ -2937,7 +3435,7 @@ export default function BinderScreen() {
     );
   }
 
-  if (collection.type === 'custom' && !(collection.customPokemonNames?.length ?? 0)) {
+  if ((collection.type === 'custom' && !(collection.customPokemonNames?.length ?? 0)) || collection.type === 'graded') {
     const customSlots = effectiveCollection.slots ?? [];
     return (
       <View style={styles.screenRoot}>
@@ -2970,18 +3468,29 @@ export default function BinderScreen() {
             <Text style={styles.nameSubtitle}>{getCollectionSubtitle(collection)}</Text>
             {isEditMode && (
               <View style={styles.topSectionButtonRow}>
-                <Pressable
-                  style={({ pressed }) => [styles.addUserCardBtn, pressed && styles.rowPressed]}
-                  onPress={() => router.push(`/card-search-add?collectionId=${id}`)}
-                >
-                  <Text style={styles.addUserCardBtnText}>Add card (search)</Text>
-                </Pressable>
-                <Pressable
-                  style={({ pressed }) => [styles.addUserCardBtn, pressed && styles.rowPressed]}
-                  onPress={() => openAddUserCardModal()}
-                >
-                  <Text style={styles.addUserCardBtnText}>Add missing card</Text>
-                </Pressable>
+                {collection.type === 'graded' ? (
+                  <Pressable
+                    style={({ pressed }) => [styles.addUserCardBtn, pressed && styles.rowPressed]}
+                    onPress={() => openAddUserCardModal()}
+                  >
+                    <Text style={styles.addUserCardBtnText}>Add graded card</Text>
+                  </Pressable>
+                ) : (
+                  <>
+                    <Pressable
+                      style={({ pressed }) => [styles.addUserCardBtn, pressed && styles.rowPressed]}
+                      onPress={() => router.push(`/card-search-add?collectionId=${id}`)}
+                    >
+                      <Text style={styles.addUserCardBtnText}>Add card (search)</Text>
+                    </Pressable>
+                    <Pressable
+                      style={({ pressed }) => [styles.addUserCardBtn, pressed && styles.rowPressed]}
+                      onPress={() => openAddUserCardModal()}
+                    >
+                      <Text style={styles.addUserCardBtnText}>Add missing card</Text>
+                    </Pressable>
+                  </>
+                )}
               </View>
             )}
           </View>
@@ -3000,12 +3509,19 @@ export default function BinderScreen() {
               contentContainerStyle={styles.listContent}
               renderItem={({ item: slot }) => {
                 const slotCard = slot.card;
-                const isUser = slotCard?.cardId.startsWith('user-');
+                const isUser = !!slotCard && slotCard.cardId.startsWith('user-');
                 const brief = !isUser && slotCard ? customCardBriefs[slotCard.cardId] : null;
                 const name = isUser ? (collection.userCards?.[slotCard!.cardId]?.name ?? 'Custom card') : (brief?.name ?? slotCard?.cardId ?? '—');
+                const gradedService = isUser ? (collection.userCards?.[slotCard!.cardId]?.gradingService ?? '') : '';
+                const grade = isUser ? (collection.userCards?.[slotCard!.cardId]?.grade ?? '') : '';
+                const graded =
+                  gradedService || grade
+                    ? `${gradedService}${gradedService && grade ? ' ' : ''}${grade}`.trim()
+                    : (isUser ? (collection.userCards?.[slotCard!.cardId]?.grading ?? '') : '');
                 const setLabel = isUser ? (collection.userCards?.[slotCard!.cardId]?.setName ?? 'Custom') : (brief?.set?.name ?? '—');
                 const imageUri = isUser && slotCard ? userOverrideUris[slotCard.cardId] : (brief?.image ? (normalizeTcgdexImageUrl(brief.image) ?? brief.image) : null);
                 const variantLabel = slotCard?.variant && slotCard.variant !== 'normal' ? ` • ${getVariantLabel(slotCard.variant)}` : '';
+                const gradedLabel = collection.type === 'graded' && graded ? ` • ${graded}` : '';
                 return (
                   <Pressable
                     style={({ pressed }) => [styles.listRow, pressed && styles.rowPressed]}
@@ -3015,9 +3531,12 @@ export default function BinderScreen() {
                       } else {
                         openCardOverlay({
                           imageUri: imageUri ?? null,
-                          cardName: name + variantLabel,
-                          setLabel,
-                          collectorNumber: collection.userCards?.[slotCard?.cardId ?? '']?.localId ?? '—',
+                          cardName: name + variantLabel + gradedLabel,
+                          setLabel: setLabel + gradedLabel,
+                          collectorNumber:
+                            collection.type === 'graded'
+                              ? (graded || '—')
+                              : (collection.userCards?.[slotCard?.cardId ?? '']?.localId ?? '—'),
                           cardId: slotCard?.cardId,
                           slotKey: slot.key,
                           variant: slotCard?.variant,
@@ -3027,7 +3546,10 @@ export default function BinderScreen() {
                     onLongPress={() => slotCard && handleLongPressCard(slot.key, slotCard.cardId, slotCard.variant)}
                   >
                     <Text style={[styles.listRowName, !slotCard && styles.listRowNameUncollected]} numberOfLines={2}>{name}{variantLabel}</Text>
-                    <Text style={[styles.listRowMeta, !slotCard && styles.listRowMetaUncollected]} numberOfLines={2}>{setLabel}</Text>
+                    <Text style={[styles.listRowMeta, !slotCard && styles.listRowMetaUncollected]} numberOfLines={2}>
+                      {setLabel}
+                      {collection.type === 'graded' && graded ? ` • ${graded}` : ''}
+                    </Text>
                     <View style={styles.listRowRight}>
                       {slotCard ? <Text style={styles.listRowCheck}>✓</Text> : <View style={styles.listRowEmpty} />}
                     </View>
@@ -3052,7 +3574,16 @@ export default function BinderScreen() {
                     const setLabel = isUser ? (collection.userCards?.[slotCard!.cardId]?.setName ?? 'Custom') : (brief?.set?.name ?? '—');
                     const imageUri = isUser && slotCard ? userOverrideUris[slotCard.cardId] : (brief?.image ? (normalizeTcgdexImageUrl(brief.image) ?? brief.image) : null);
                     const variantLabel = slotCard?.variant && slotCard.variant !== 'normal' ? ` (${getVariantLabel(slotCard.variant)})` : '';
-                    const collectorNum = collection.userCards?.[slotCard?.cardId ?? '']?.localId ?? '—';
+                    const gradedService = isUser ? (collection.userCards?.[slotCard!.cardId]?.gradingService ?? '') : '';
+                    const grade = isUser ? (collection.userCards?.[slotCard!.cardId]?.grade ?? '') : '';
+                    const graded =
+                      gradedService || grade
+                        ? `${gradedService}${gradedService && grade ? ' ' : ''}${grade}`.trim()
+                        : (isUser ? (collection.userCards?.[slotCard!.cardId]?.grading ?? '') : '');
+                    const collectorNum =
+                      collection.type === 'graded'
+                        ? (graded || '—')
+                        : (collection.userCards?.[slotCard?.cardId ?? '']?.localId ?? '—');
                     const isCollected = !!slotCard;
                     return (
                       <Pressable
@@ -3086,7 +3617,9 @@ export default function BinderScreen() {
                           />
                           <View style={styles.cardRibbon} pointerEvents="none">
                             <Text style={styles.cardRibbonText} numberOfLines={2}>
-                              {setLabel} • #{collectorNum}{variantLabel}
+                              {setLabel}
+                              {collection.type === 'graded' ? ` • ${collectorNum}` : ` • #${collectorNum}`}
+                              {variantLabel}
                             </Text>
                           </View>
                           {!isCollected && <View style={styles.gridCardGreyscaleOverlay} pointerEvents="none" />}
@@ -3109,14 +3642,29 @@ export default function BinderScreen() {
                 <>
                   <View style={styles.cardOverlayCardRow}>
                     <View style={styles.cardOverlayCardWrap}>
-                      <CachedImage remoteUri={cardOverlay.imageUri ?? undefined} style={styles.cardOverlayImage} resizeMode="contain" cardId={cardOverlay.cardId} overrideUri={cardOverlay.cardId ? userOverrideUris[cardOverlay.cardId] : undefined} />
+                      <View style={styles.holoWrap}>
+                        <CachedImage
+                          remoteUri={cardOverlay.imageUri ?? undefined}
+                          style={styles.cardOverlayImage}
+                          resizeMode="contain"
+                          cardId={cardOverlay.cardId}
+                          overrideUri={cardOverlay.cardId ? userOverrideUris[cardOverlay.cardId] : undefined}
+                        />
+                        {(() => {
+                          const slotCard = cardOverlay.slotKey ? getSlotCard(collection, cardOverlay.slotKey) : null;
+                          const variant = slotCard?.variant ?? cardOverlay.variant;
+                          return shouldShowHolo(slotCard, variant) ? <HoloSheen intensity={0.85} /> : null;
+                        })()}
+                      </View>
                     </View>
                   </View>
                   <View style={styles.cardOverlayInfoBox}>
                     <View style={styles.cardOverlayInfo}>
                       <Text style={styles.cardOverlayInfoTitle}>{cardOverlay.cardName}</Text>
                       <Text style={styles.cardOverlayInfoRow}>Set: {cardOverlay.setLabel}</Text>
-                      <Text style={styles.cardOverlayInfoRow}>Collector #: {cardOverlay.collectorNumber}</Text>
+                      <Text style={styles.cardOverlayInfoRow}>
+                        {collection.type === 'graded' ? 'Grade' : 'Collector #'}: {cardOverlay.collectorNumber}
+                      </Text>
                     </View>
                     <View style={styles.cardOverlayActions}>
                       {isEditMode && cardOverlay.slotKey ? (
@@ -3141,23 +3689,80 @@ export default function BinderScreen() {
           <Pressable style={styles.masterPickerBackdrop} onPress={() => setAddUserCardVisible(false)}>
             <Pressable style={styles.masterPickerCard} onPress={(e) => e.stopPropagation()}>
               <ScrollView style={styles.addUserCardScroll} contentContainerStyle={styles.addUserCardScrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator>
-                <Text style={styles.masterPickerTitle}>Add a missing card</Text>
-                <Text style={styles.addUserCardHint}>Name and optional set/number. You can add a photo from your device.</Text>
+                <Text style={styles.masterPickerTitle}>
+                  {(collection as any).type === 'graded' ? 'Add graded card' : 'Add a missing card'}
+                </Text>
+                <Text style={styles.addUserCardHint}>
+                  {(collection as any).type === 'graded'
+                    ? 'Enter the card details and grade, then attach a photo of the slab/card.'
+                    : 'Name and optional set/number. You can add a photo from your device.'}
+                </Text>
                 <Text style={styles.addUserCardLabel}>Card name</Text>
                 <TextInput style={styles.addUserCardInput} placeholderTextColor="#888" placeholder="Card name" value={addUserCardName} onChangeText={setAddUserCardName} />
                 <Text style={styles.addUserCardLabel}>Set name</Text>
                 <TextInput style={styles.addUserCardInput} placeholderTextColor="#888" placeholder="Set" value={addUserCardSetName} onChangeText={setAddUserCardSetName} />
-                <Text style={styles.addUserCardLabel}>Collector number</Text>
-                <TextInput style={styles.addUserCardInput} placeholderTextColor="#888" placeholder="#" value={addUserCardCollectorNumber} onChangeText={setAddUserCardCollectorNumber} keyboardType="numeric" />
-                <Text style={styles.addUserCardLabel}>Variation</Text>
-                <ScrollView horizontal style={{ marginBottom: 12 }} showsHorizontalScrollIndicator={false}>
-                  {CARD_VARIANTS.map((v) => (
-                    <Pressable key={v} style={[styles.addUserCardPickRow, { marginRight: 8, marginBottom: 0 }, addUserCardVariant === v && styles.addUserCardPickRowSelected]} onPress={() => setAddUserCardVariant(v)}>
-                      <Text style={styles.addUserCardPickRowText}>{getVariantLabel(v)}</Text>
-                      {addUserCardVariant === v && <Text style={styles.addUserCardPickRowCheck}>✓</Text>}
-                    </Pressable>
-                  ))}
-                </ScrollView>
+                {(collection as any).type === 'graded' ? (
+                  <>
+                    <Text style={styles.addUserCardLabel}>Grading service</Text>
+                    <TextInput
+                      style={styles.addUserCardInput}
+                      placeholderTextColor="#888"
+                      placeholder='e.g. "PSA", "CGC", "BGS"'
+                      value={addUserCardGradingService}
+                      onChangeText={setAddUserCardGradingService}
+                      autoCapitalize="characters"
+                    />
+                    <Text style={styles.addUserCardLabel}>Grade (PSA scale)</Text>
+                    <ScrollView horizontal style={{ marginBottom: 12 }} showsHorizontalScrollIndicator={false} nestedScrollEnabled>
+                      {PSA_GRADE_OPTIONS.map((g) => {
+                        const selected = addUserCardGrade === g;
+                        return (
+                          <Pressable
+                            key={g}
+                            style={[
+                              styles.addUserCardPickRow,
+                              { marginRight: 8, marginBottom: 0 },
+                              selected && styles.addUserCardPickRowSelected,
+                            ]}
+                            onPress={() => setAddUserCardGrade(g)}
+                          >
+                            <Text style={styles.addUserCardPickRowText}>{g}</Text>
+                            {selected && <Text style={styles.addUserCardPickRowCheck}>✓</Text>}
+                          </Pressable>
+                        );
+                      })}
+                    </ScrollView>
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.addUserCardLabel}>Collector number</Text>
+                    <TextInput
+                      style={styles.addUserCardInput}
+                      placeholderTextColor="#888"
+                      placeholder="#"
+                      value={addUserCardCollectorNumber}
+                      onChangeText={setAddUserCardCollectorNumber}
+                      keyboardType="numeric"
+                    />
+                    <Text style={styles.addUserCardLabel}>Variation</Text>
+                    <ScrollView horizontal style={{ marginBottom: 12 }} showsHorizontalScrollIndicator={false}>
+                      {CARD_VARIANTS.map((v) => (
+                        <Pressable
+                          key={v}
+                          style={[
+                            styles.addUserCardPickRow,
+                            { marginRight: 8, marginBottom: 0 },
+                            addUserCardVariant === v && styles.addUserCardPickRowSelected,
+                          ]}
+                          onPress={() => setAddUserCardVariant(v)}
+                        >
+                          <Text style={styles.addUserCardPickRowText}>{getVariantLabel(v)}</Text>
+                          {addUserCardVariant === v && <Text style={styles.addUserCardPickRowCheck}>✓</Text>}
+                        </Pressable>
+                      ))}
+                    </ScrollView>
+                  </>
+                )}
                 <Pressable style={styles.addUserCardImageBtn} onPress={pickUserCardImage}>
                   {addUserCardImageUri ? <Image source={{ uri: addUserCardImageUri }} style={styles.addUserCardThumb} resizeMode="contain" /> : <Text style={styles.addUserCardImageBtnText}>Pick image from device</Text>}
                 </Pressable>
@@ -3291,9 +3896,18 @@ export default function BinderScreen() {
                 const slotCard = slot?.card ?? null;
                 const isUser = slotCard?.cardId.startsWith('user-');
                 const brief = multiBriefBySlotKey.get(slotKey) ?? (slotCard ? customCardBriefs[slotCard.cardId] : null);
-                const name = isUser ? (collection.userCards?.[slotCard!.cardId]?.name ?? 'Custom card') : (brief?.name ?? slotCard?.cardId ?? '—');
-                const setLabel = isUser ? (collection.userCards?.[slotCard!.cardId]?.setName ?? 'Custom') : (brief ? setLabelForCard(brief, setNamesById) : '—');
-                const variantLabel = slotCard?.variant && slotCard.variant !== 'normal' ? ` • ${getVariantLabel(slotCard.variant)}` : (brief && 'variant' in brief && brief.variant !== 'normal' ? ` • ${getVariantLabel(brief.variant)}` : '');
+                const name = isUser
+                  ? (collection.userCards?.[slotCard!.cardId]?.name ?? 'Custom card')
+                  : (brief?.name ?? slotCard?.cardId ?? '—');
+                const setLabel = isUser
+                  ? (collection.userCards?.[slotCard!.cardId]?.setName ?? 'Custom')
+                  : (brief ? setLabelForCard(brief, setNamesById) : '—');
+                const variantLabel =
+                  slotCard?.variant && slotCard.variant !== 'normal'
+                    ? ` • ${getVariantLabel(slotCard.variant)}`
+                    : (brief && 'variant' in brief && (brief as any).variant !== 'normal'
+                        ? ` • ${getVariantLabel((brief as any).variant as CardVariant)}`
+                        : '');
                 const collectorNum = isUser ? (collection.userCards?.[slotCard?.cardId ?? '']?.localId ?? '—') : (brief && 'localId' in brief ? brief.localId ?? collectorNumberFromCardId(slotKey) : '—');
                 const imageUri = isUser && slotCard ? userOverrideUris[slotCard.cardId] : (brief?.image ? (normalizeTcgdexImageUrl(brief.image) ?? brief.image) : null);
                 return (
@@ -3306,7 +3920,7 @@ export default function BinderScreen() {
                           slotKey,
                           slotCard?.cardId ?? (brief && 'id' in brief ? brief.id : ''),
                           undefined,
-                          slotCard?.variant ?? (brief && 'variant' in brief ? brief.variant : 'normal')
+                          slotCard?.variant ?? (brief && 'variant' in brief ? ((brief as any).variant as CardVariant) : 'normal')
                         );
                       } else {
                         openCardOverlay({
@@ -3316,7 +3930,7 @@ export default function BinderScreen() {
                           collectorNumber: collectorNum,
                           cardId: slotCard?.cardId ?? (brief && 'id' in brief ? brief.id : ''),
                           slotKey,
-                          variant: slotCard?.variant ?? (brief && 'variant' in brief ? brief.variant : 'normal'),
+                          variant: slotCard?.variant ?? (brief && 'variant' in brief ? ((brief as any).variant as CardVariant) : 'normal'),
                         });
                       }
                     }}
@@ -3351,11 +3965,16 @@ export default function BinderScreen() {
                     {slotKeys.map((slotKey) => {
                       const slot = customMultiSlots.find((s) => s.key === slotKey);
                       const slotCard = slot?.card ?? null;
-                      const isUser = slotCard?.cardId.startsWith('user-');
+                      const isUser = !!slotCard && slotCard.cardId.startsWith('user-');
                       const brief = multiBriefBySlotKey.get(slotKey) ?? (slotCard ? customCardBriefs[slotCard.cardId] : null);
                       const name = isUser ? (collection.userCards?.[slotCard!.cardId]?.name ?? 'Custom card') : (brief?.name ?? '—');
                       const setLabel = isUser ? (collection.userCards?.[slotCard!.cardId]?.setName ?? 'Custom') : (brief ? setLabelForCard(brief, setNamesById) : '—');
-                      const variantLabel = slotCard?.variant && slotCard.variant !== 'normal' ? ` (${getVariantLabel(slotCard.variant)})` : (brief && 'variant' in brief && brief.variant !== 'normal' ? ` (${getVariantLabel(brief.variant)})` : '');
+                      const variantLabel =
+                        slotCard?.variant && slotCard.variant !== 'normal'
+                          ? ` (${getVariantLabel(slotCard.variant)})`
+                          : (brief && 'variant' in brief && (brief as any).variant !== 'normal'
+                              ? ` (${getVariantLabel((brief as any).variant as CardVariant)})`
+                              : '');
                       const collectorNum = isUser ? (collection.userCards?.[slotCard?.cardId ?? '']?.localId ?? '—') : (brief && 'localId' in brief ? brief.localId ?? collectorNumberFromCardId(slotKey) : '—');
                       const imageUri = isUser && slotCard ? userOverrideUris[slotCard.cardId] : (brief?.image ? (normalizeTcgdexImageUrl(brief.image) ?? brief.image) : null);
                       const isCollected = !!slotCard;
@@ -3370,7 +3989,7 @@ export default function BinderScreen() {
                                 slotKey,
                                 slotCard?.cardId ?? (brief && 'id' in brief ? brief.id : ''),
                                 undefined,
-                                slotCard?.variant ?? (brief && 'variant' in brief ? brief.variant : 'normal')
+                                slotCard?.variant ?? (brief && 'variant' in brief ? ((brief as any).variant as CardVariant) : 'normal')
                               );
                             } else {
                               openCardOverlay({
@@ -3380,7 +3999,7 @@ export default function BinderScreen() {
                                 collectorNumber: collectorNum,
                                 cardId: slotCard?.cardId ?? (brief && 'id' in brief ? brief.id : ''),
                                 slotKey,
-                                variant: slotCard?.variant ?? (brief && 'variant' in brief ? brief.variant : 'normal'),
+                                variant: slotCard?.variant ?? (brief && 'variant' in brief ? ((brief as any).variant as CardVariant) : 'normal'),
                               });
                             }
                           }}
@@ -3468,6 +4087,11 @@ export default function BinderScreen() {
 }
 
 const styles = StyleSheet.create({
+  holoWrap: {
+    position: 'relative',
+    width: '100%',
+    height: '100%',
+  },
   screenRoot: { flex: 1, position: 'relative' },
   screenFill: {
     position: 'absolute',
@@ -3497,6 +4121,14 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255,255,255,0.12)',
     alignItems: 'center',
+    alignSelf: 'stretch',
+  },
+  viewModeRow: {
+    flexDirection: 'row',
+    gap: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 12,
     alignSelf: 'stretch',
   },
   nameRowLabel: {
@@ -3744,6 +4376,13 @@ const styles = StyleSheet.create({
     color: '#fff',
     marginBottom: 10,
   },
+  cardOverlayToggleRow: {
+    marginTop: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
   cardOverlayInfoRow: {
     fontSize: 15,
     color: 'rgba(255,255,255,0.9)',
@@ -3840,6 +4479,7 @@ const styles = StyleSheet.create({
   },
   headerButtonPressed: { opacity: 0.7 },
   deleteButtonText: { fontSize: 16, color: '#f66' },
+  scanButtonText: { fontSize: 16, color: '#4ade80' },
   exportButtonText: { fontSize: 16, color: '#ffcf1c' },
   exportLabel: { fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 12, marginBottom: 6, textTransform: 'uppercase' },
   exportRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 4 },

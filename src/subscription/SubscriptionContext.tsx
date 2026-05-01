@@ -14,7 +14,7 @@ export const ENTITLEMENT_ID = 'oakedex_pro';
  * Flip to false when beta testing is over and you want to enforce paywalls.
  * While true, all users are treated as subscribers regardless of RevenueCat status.
  */
-const BETA_MODE = true;
+const BETA_MODE = false;
 
 const REVENUECAT_APPLE_API_KEY = process.env.EXPO_PUBLIC_REVENUECAT_APPLE_API_KEY ?? '';
 const REVENUECAT_GOOGLE_API_KEY = process.env.EXPO_PUBLIC_REVENUECAT_GOOGLE_API_KEY ?? '';

@@ -15,15 +15,17 @@ import { SyncLoadingScreen } from '@/components/SyncLoadingScreen';
 import { useAuth } from '@/src/auth/AuthContext';
 import { createCollection, loadCollectionsForDisplay } from '@/src/lib/collections';
 import { BINDER_COLOR_OPTIONS } from '@/src/constants/binderColors';
-import { setHasFirstEdition, type EditionFilter } from '@/src/types';
+import { hasFirstEditionOption, type EditionFilter } from '@/src/types';
 import { getExcludedSetIds, getSetsWithCache } from '@/src/lib/cardDataCache';
 import { normalizeTcgdexImageUrl, type TCGdexLang, type TCGdexSetBrief } from '@/src/lib/tcgdex';
+import { useIsSubscriber } from '@/src/subscription/SubscriptionContext';
 
 const LANG: TCGdexLang = 'en';
 
 export default function NewBySetScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const isSubscriber = useIsSubscriber();
   const [sets, setSets] = useState<TCGdexSetBrief[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('');
@@ -34,10 +36,11 @@ export default function NewBySetScreen() {
 
   // Post-Skyridge sets (2004+) have no 1st Edition; clear 1st-ed-only if user picked an older filter
   useEffect(() => {
-    if (selectedSet && !setHasFirstEdition(selectedSet.releaseDate) && editionFilter === '1stEditionOnly') {
-      setEditionFilter('all');
+    const allowFirstEd = !!selectedSet && hasFirstEditionOption(selectedSet.name, LANG);
+    if (selectedSet && !allowFirstEd && editionFilter !== 'unlimitedOnly') {
+      setEditionFilter('unlimitedOnly');
     }
-  }, [selectedSet?.id, selectedSet?.releaseDate, editionFilter]);
+  }, [selectedSet?.id, selectedSet?.name, editionFilter]);
 
   useFocusEffect(
     useCallback(() => {
@@ -65,6 +68,13 @@ export default function NewBySetScreen() {
 
   const onConfirm = useCallback(async () => {
     if (!selectedSet || !selectedColorId || creating) return;
+    if (!isSubscriber) {
+      const collections = await loadCollectionsForDisplay().catch(() => []);
+      if (collections.length >= 3) {
+        router.push('/paywall');
+        return;
+      }
+    }
     setCreating(true);
     const coll = await createCollection('by_set', selectedSet.name, {
       setId: selectedSet.id,
@@ -75,7 +85,7 @@ export default function NewBySetScreen() {
     });
     setCreating(false);
     router.replace(`/binder/${coll.id}?edit=1`);
-  }, [selectedSet, editionFilter, selectedColorId, creating, router]);
+  }, [selectedSet, editionFilter, selectedColorId, creating, router, isSubscriber]);
 
   if (loading) {
     return (
@@ -105,13 +115,17 @@ export default function NewBySetScreen() {
         />
         <Text style={styles.label}>Edition</Text>
         <Text style={styles.sublabel}>
-          {setHasFirstEdition(selectedSet.releaseDate)
+          {hasFirstEditionOption(selectedSet.name, LANG)
             ? '1st Edition only, Unlimited only, or include all. Default: Include all.'
             : 'This set is Unlimited only (no 1st Edition).'}
         </Text>
         <View style={styles.editionRow}>
           {(['all', '1stEditionOnly', 'unlimitedOnly'] as const)
-            .filter((value) => value !== '1stEditionOnly' || setHasFirstEdition(selectedSet.releaseDate))
+            .filter((value) => {
+              const allowFirstEd = hasFirstEditionOption(selectedSet.name, LANG);
+              if (!allowFirstEd) return value === 'unlimitedOnly';
+              return true;
+            })
             .map((value) => (
             <Pressable
               key={value}

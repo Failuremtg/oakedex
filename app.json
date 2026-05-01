@@ -2,7 +2,7 @@
   "expo": {
     "name": "oakedex",
     "slug": "oakedex",
-    "version": "0.5.8",
+    "version": "0.5.9",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "oakedex",
@@ -16,7 +16,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.oakedex.app",
-      "buildNumber": "10",
+      "buildNumber": "11",
       "usesAppleSignIn": true,
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
@@ -30,7 +30,7 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.failuremtg.oakedex",
-      "versionCode": 11
+      "versionCode": 12
     },
     "web": {
       "bundler": "metro",
@@ -40,10 +40,33 @@
     "plugins": [
       "expo-router",
       "expo-apple-authentication",
+      "expo-web-browser",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "deploymentTarget": "16.0"
+          }
+        }
+      ],
       [
         "@react-native-google-signin/google-signin",
         {
           "iosUrlScheme": "com.googleusercontent.apps.154159149234-cttv7um4q5uook5to1ol0fsk85hqaut5"
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Oakedex needs camera access to scan your Pokémon cards.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Oakedex needs access to your photos to let you add card images."
         }
       ]
     ],

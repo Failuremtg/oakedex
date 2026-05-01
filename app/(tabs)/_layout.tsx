@@ -76,12 +76,14 @@ export default function TabLayout() {
         <Tabs.Screen name="index" options={{ title: 'Collections' }} />
         <Tabs.Screen name="binder" options={{ title: 'Edit' }} />
         <Tabs.Screen name="prices" options={{ title: 'Card Dex' }} />
+        <Tabs.Screen name="wanted" options={{ title: 'Wanted' }} />
         <Tabs.Screen name="profile" options={{ title: 'Trainer ID' }} />
-        <Tabs.Screen name="settings" options={{ title: 'Settings' }} />
+        <Tabs.Screen name="settings" options={{ title: 'Settings', href: null }} />
         <Tabs.Screen name="collection" options={{ href: null }} />
         <Tabs.Screen name="search" options={{ href: null }} />
-        <Tabs.Screen name="two" options={{ href: null }} />
-      </Tabs>
+        <Tabs.Screen name="wanted-add" options={{ href: null, headerShown: false, title: '' }} />
+        <Tabs.Screen name="wanted/[id]" options={{ href: null, headerShown: false, title: '' }} />
+        </Tabs>
     );
   }
 
@@ -101,11 +103,13 @@ export default function TabLayout() {
       <Tabs.Screen name="index" options={{ title: 'Collections' }} />
       <Tabs.Screen name="binder" options={{ title: 'Edit' }} />
       <Tabs.Screen name="prices" options={{ title: 'Card Dex' }} />
+      <Tabs.Screen name="wanted" options={{ title: 'Wanted' }} />
       <Tabs.Screen name="profile" options={{ title: 'Trainer ID' }} />
-      <Tabs.Screen name="settings" options={{ title: 'Settings' }} />
+      <Tabs.Screen name="settings" options={{ title: 'Settings', href: null }} />
       <Tabs.Screen name="collection" options={{ href: null }} />
       <Tabs.Screen name="search" options={{ href: null }} />
-      <Tabs.Screen name="two" options={{ href: null }} />
+      <Tabs.Screen name="wanted-add" options={{ href: null, headerShown: false, title: '' }} />
+      <Tabs.Screen name="wanted/[id]" options={{ href: null, headerShown: false, title: '' }} />
     </Tabs>
   );
 }

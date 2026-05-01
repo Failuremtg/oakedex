@@ -308,7 +308,8 @@ export async function getCollectionsInDisplayOrder(collections?: Collection[]): 
   const singles = list.filter((c) => c.type === 'single_pokemon');
   const bySet = list.filter((c) => c.type === 'by_set');
   const custom = list.filter((c) => c.type === 'custom');
-  const rest = [...masterTypes, ...singles, ...bySet, ...custom];
+  const graded = list.filter((c) => c.type === 'graded');
+  const rest = [...masterTypes, ...singles, ...bySet, ...custom, ...graded];
 
   if (order.length === 0) {
     const cta = list.find((c) => c.type === 'collect_them_all');
@@ -316,7 +317,8 @@ export async function getCollectionsInDisplayOrder(collections?: Collection[]): 
     const sortedSingles = [...singles].sort((a, b) => a.createdAt - b.createdAt);
     const sortedBySet = [...bySet].sort((a, b) => a.createdAt - b.createdAt);
     const sortedCustom = [...custom].sort((a, b) => a.createdAt - b.createdAt);
-    return [...(cta ? [cta] : []), ...otherMaster, ...sortedSingles, ...sortedBySet, ...sortedCustom];
+    const sortedGraded = [...graded].sort((a, b) => a.createdAt - b.createdAt);
+    return [...(cta ? [cta] : []), ...otherMaster, ...sortedSingles, ...sortedBySet, ...sortedCustom, ...sortedGraded];
   }
 
   const ordered: Collection[] = [];

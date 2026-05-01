@@ -1,4 +1,4 @@
-import * as FileSystem from 'expo-file-system';
+import { cacheDirectory, EncodingType, writeAsStringAsync } from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
@@ -76,8 +76,9 @@ export default function AdminFeedbackScreen() {
     try {
       const text = formatFeedbackAsText(entries);
       const filename = `oakedex-feedback-${new Date().toISOString().slice(0, 10)}.txt`;
-      const path = `${FileSystem.cacheDirectory}${filename}`;
-      await FileSystem.writeAsStringAsync(path, text, { encoding: FileSystem.EncodingType.UTF8 });
+      if (!cacheDirectory) throw new Error('Storage not available');
+      const path = `${cacheDirectory}${filename}`;
+      await writeAsStringAsync(path, text, { encoding: EncodingType.UTF8 });
       const canShare = await Sharing.isAvailableAsync();
       if (canShare) {
         await Sharing.shareAsync(path, {
@@ -195,6 +196,7 @@ export default function AdminFeedbackScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: charcoal },
+  placeholder: { fontSize: 16, color: 'rgba(255,255,255,0.7)' },
   toolbar: {
     padding: 16,
     paddingBottom: 8,

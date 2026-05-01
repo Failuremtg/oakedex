@@ -31,7 +31,7 @@
       },
       "android": {
         "track": "internal",
-        "serviceAccountKeyPath": "C:/Users/groeh/Desktop/oakedex-d44e8086cc1c.json"
+        "serviceAccountKeyPath": "C:/Users/groeh/Desktop/appdev-all/apps-dev/oakedex/.secrets/google-play-service-account.json"
       }
     }
   }

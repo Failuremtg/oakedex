@@ -21,6 +21,7 @@ const GOLD = '#ffcf1c';
 
 const FEATURES = [
   'Unlimited binders',
+  'Graded card collection',
   'Custom binders (empty or multi-Pokémon)',
   'Export binders to PDF',
 ];
@@ -50,6 +51,7 @@ export default function PaywallScreen() {
     purchasePackage,
     restorePurchases,
     refreshSubscription,
+    presentCustomerCenter,
   } = useSubscription();
 
   const packages: PurchasesPackage[] = offerings?.current?.availablePackages ?? [];
@@ -97,6 +99,9 @@ export default function PaywallScreen() {
   }, [restorePurchases, refreshSubscription, router]);
 
   const notAvailable = Platform.OS !== 'ios' && Platform.OS !== 'android';
+  const hasPackages = packages.length > 0;
+  // Only show the RevenueCat setup guide in dev builds — never expose to real users
+  const showSetupHint = __DEV__ && !notAvailable && !isLoading && !hasPackages;
 
   return (
     <ScrollView
@@ -106,7 +111,7 @@ export default function PaywallScreen() {
     >
       <Text style={styles.title}>Oakedex Pro</Text>
       <Text style={styles.subtitle}>
-        Unlock the full Pokédex experience.
+        Unlock the full Oakedex experience.
       </Text>
 
       {/* Feature list */}
@@ -128,6 +133,28 @@ export default function PaywallScreen() {
         <Text style={styles.hint}>
           In-app subscriptions are only available on iOS and Android.
         </Text>
+      )}
+
+      {showSetupHint && (
+        <View style={styles.setupHint}>
+          <Text style={styles.setupHintTitle}>Subscriptions not configured yet</Text>
+          <Text style={styles.setupHintText}>
+            RevenueCat is installed, but there are no packages to purchase.
+          </Text>
+          <Text style={styles.setupHintText}>
+            Check: RevenueCat Entitlement <Text style={styles.mono}>oakedex_pro</Text>, an active Offering (e.g. “default”),
+            and that your App Store products are linked to packages.
+          </Text>
+          <Text style={styles.setupHintText}>
+            Also ensure your <Text style={styles.mono}>EXPO_PUBLIC_REVENUECAT_APPLE_API_KEY</Text> is set in <Text style={styles.mono}>.env</Text>.
+          </Text>
+          <Pressable
+            style={({ pressed }) => [styles.restoreBtn, pressed && styles.pressed]}
+            onPress={() => { hapticLight(); refreshSubscription(); }}
+          >
+            <Text style={styles.restoreBtnText}>Refresh</Text>
+          </Pressable>
+        </View>
       )}
 
       {/* Package selector */}
@@ -195,6 +222,14 @@ export default function PaywallScreen() {
           >
             <Text style={styles.restoreBtnText}>Restore purchases</Text>
           </Pressable>
+
+          <Pressable
+            style={[styles.manageBtn, (busy || isLoading) && styles.buttonDisabled]}
+            disabled={busy || isLoading}
+            onPress={() => { hapticLight(); presentCustomerCenter(); }}
+          >
+            <Text style={styles.manageBtnText}>Manage subscription</Text>
+          </Pressable>
         </>
       ) : null}
 
@@ -248,6 +283,32 @@ const styles = StyleSheet.create({
   errorText: { color: '#ef4444', fontSize: 14, marginBottom: 12, textAlign: 'center' },
   hint: { color: TEXT_SECONDARY, fontSize: 14, marginBottom: 16, textAlign: 'center' },
   spinner: { marginVertical: 24 },
+  pressed: { opacity: 0.85 },
+
+  setupHint: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: BORDER,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    padding: 14,
+    marginBottom: 18,
+    gap: 6,
+  },
+  setupHintTitle: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '800',
+    marginBottom: 2,
+  },
+  setupHintText: {
+    color: TEXT_SECONDARY,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  mono: {
+    fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace', default: undefined }),
+    color: 'rgba(255,255,255,0.85)',
+  },
 
   packageList: { gap: 10, marginBottom: 20 },
   packageCard: {
@@ -306,6 +367,16 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   restoreBtnText: { color: '#fff', fontWeight: '600', fontSize: 15 },
+  manageBtn: {
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1,
+    borderColor: BORDER,
+    marginBottom: 20,
+  },
+  manageBtnText: { color: '#fff', fontWeight: '600', fontSize: 15 },
   buttonDisabled: { opacity: 0.5 },
   closeButton: { alignSelf: 'center', paddingVertical: 8, marginBottom: 12 },
   closeButtonText: { color: TEXT_SECONDARY, fontSize: 15 },

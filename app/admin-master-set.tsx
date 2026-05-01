@@ -139,7 +139,10 @@ export default function AdminMasterSetScreen() {
     if (!pickerVisible || !pickerSlot) return;
     const customCard = pickerSlot.customCard;
     if (customCard) {
-      const variants = filterVariantsByEdition(getDisplayVariants({ name: customCard.name, variants: customCard.variants }), 'all');
+      const variants = filterVariantsByEdition(
+        getDisplayVariants({ name: customCard.name, variants: customCard.variants as Record<string, boolean> }),
+        'all'
+      );
       const expanded: (AppCardBrief & { variant: CardVariant })[] = variants.map((variant) => ({
         id: customCard.id,
         name: customCard.name,
@@ -189,7 +192,7 @@ export default function AdminMasterSetScreen() {
           for (let i = 0; i < ids.length; i += 50) {
             const batch = ids.slice(i, i + 50);
             const fullInLang = await Promise.all(batch.map((id) => getCard(LANG, id).catch(() => null)));
-            const resolved = fullInLang.filter((c): c is NonNullable<typeof c[0]> => c != null);
+            const resolved = fullInLang.filter((c): c is NonNullable<typeof c> => c != null);
             cards = resolved.map((c) => ({ id: c.id, name: c.name, localId: c.localId, image: c.image ?? null, set: c.set }));
           }
         }

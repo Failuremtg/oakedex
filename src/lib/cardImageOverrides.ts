@@ -44,7 +44,7 @@ export async function getOverrideUri(cardId: string, type: OverrideType): Promis
   if (!dir) return null;
   const path = `${dir}${safeFileName(cardId)}.jpg`;
   try {
-    const info = await getInfoAsync(path, { size: false });
+    const info = await getInfoAsync(path);
     return info.exists ? path : null;
   } catch {
     return null;

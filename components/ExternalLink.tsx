@@ -11,7 +11,7 @@ export function ExternalLink(
     <Link
       target="_blank"
       {...props}
-      href={props.href}
+      href={props.href as unknown as React.ComponentProps<typeof Link>['href']}
       onPress={(e) => {
         hapticLight();
         if (Platform.OS !== 'web') {

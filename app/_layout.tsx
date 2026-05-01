@@ -54,6 +54,8 @@ function RootLayoutNav() {
           <SubscriptionProvider>
           <Stack>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="onboarding" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
+          <Stack.Screen name="auth-choice" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
           <Stack.Screen
             name="login"
             options={{
@@ -87,10 +89,20 @@ function RootLayoutNav() {
           />
           <Stack.Screen name="card-picker" options={{ title: 'Choose card', presentation: 'modal' }} />
           <Stack.Screen name="card-search-add" options={{ title: 'Add card', presentation: 'modal' }} />
+          <Stack.Screen
+            name="card-scan"
+            options={{
+              title: 'Scan card',
+              presentation: 'fullScreenModal',
+              headerShown: false,
+              contentStyle: { backgroundColor: charcoal },
+            }}
+          />
           <Stack.Screen name="new-single" options={{ title: 'New Single Pokémon' }} />
           <Stack.Screen name="new-master-set" options={{ title: 'New Master Set' }} />
           <Stack.Screen name="new-by-set" options={{ title: 'Specific Set Collection' }} />
           <Stack.Screen name="new-custom" options={{ title: 'Custom binder' }} />
+          <Stack.Screen name="new-graded" options={{ title: 'Graded card collection' }} />
           <Stack.Screen
             name="admin"
             options={{

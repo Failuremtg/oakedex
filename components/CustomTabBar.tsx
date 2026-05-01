@@ -44,8 +44,8 @@ const TAB_CONFIG: Record<
   index: { label: 'Collections', icon: 'book' },
   binder: { label: 'Edit', icon: 'pencil' },
   prices: { label: 'Card Dex', icon: 'th' },
+  wanted: { label: 'Wanted', icon: 'star' },
   profile: { label: 'Profile', icon: 'user' },
-  settings: { label: 'Settings', icon: 'cog' },
 };
 
 export function CustomTabBar({

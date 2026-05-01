@@ -9,10 +9,11 @@ import {
   StyleSheet,
   View,
 } from 'react-native';
-import DraggableFlatList, { ScaleDecorator } from 'react-native-draggable-flatlist/src/index';
+import DraggableFlatList, { ScaleDecorator } from 'react-native-draggable-flatlist';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Text } from '@/components/Themed';
 import { BinderCover } from '@/components/BinderCover';
+import { GradedCardIcon } from '@/components/GradedCardIcon';
 import { SyncLoadingScreen } from '@/components/SyncLoadingScreen';
 import { useAuth } from '@/src/auth/AuthContext';
 import { getBinderColorHex } from '@/src/constants/binderColors';
@@ -116,6 +117,7 @@ export default function BinderTabScreen() {
     }, [refresh])
   );
 
+
   const onDragEnd = useCallback(
     ({ data }: { data: Collection[] }) => {
       setOrdered(data);
@@ -173,16 +175,22 @@ export default function BinderTabScreen() {
                 </View>
                 <View style={styles.stickerWrap}>
                   <View style={styles.stickerIconWrap}>
-                    <Image
-                      source={
-                        (() => {
-                          const uri = getCollectionIconUri(coll);
-                          return uri === POKE_BALL_ICON_BW_SENTINEL ? require('@/assets/images/pokeball-bw.png') : { uri };
-                        })()
-                      }
-                      style={styles.stickerIcon}
-                      resizeMode="contain"
-                    />
+                    {coll.type === 'graded' ? (
+                      <View style={styles.stickerIcon}>
+                        <GradedCardIcon size={STICKER_SIZE - 6} />
+                      </View>
+                    ) : (
+                      <Image
+                        source={
+                          (() => {
+                            const uri = getCollectionIconUri(coll);
+                            return uri === POKE_BALL_ICON_BW_SENTINEL ? require('@/assets/images/pokeball-bw.png') : { uri };
+                          })()
+                        }
+                        style={styles.stickerIcon}
+                        resizeMode="contain"
+                      />
+                    )}
                     {isGrandmasterCollection(coll) && (
                       <View style={styles.stickerStarBadge} pointerEvents="none">
                         <FontAwesome name="star" size={18} color="#000" style={styles.stickerStarOutline} />
@@ -383,6 +391,24 @@ export default function BinderTabScreen() {
               <Text style={styles.menuOptionText}>Custom binder</Text>
               {!isSubscriber && <Text style={styles.premiumBadge}>Premium</Text>}
             </Pressable>
+            <Pressable
+              style={({ pressed }) => [styles.menuOption, pressed && styles.menuOptionPressed, !isSubscriber && styles.menuOptionLocked]}
+              onPress={() => {
+                hapticLight();
+                closeAddMenu();
+                if (!isSubscriber) {
+                  router.push('/paywall');
+                  return;
+                }
+                router.push('/new-graded');
+              }}
+            >
+              <View style={styles.menuOptionIcon}>
+                <GradedCardIcon size={28} />
+              </View>
+              <Text style={styles.menuOptionText}>Graded card collection</Text>
+              {!isSubscriber && <Text style={styles.premiumBadge}>Premium</Text>}
+            </Pressable>
           </Pressable>
         </Pressable>
       </Modal>
@@ -569,6 +595,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.08)',
   },
   menuOptionPressed: { opacity: 0.8 },
+  menuOptionLocked: { opacity: 0.7 },
   menuOptionIcon: { width: 36, height: 36, marginRight: 14 },
   menuOptionIconCenter: {
     justifyContent: 'center',

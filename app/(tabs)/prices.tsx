@@ -14,12 +14,14 @@ import { CachedImage } from '@/components/CachedImage';
 import { primary } from '@/constants/Colors';
 import { getSetsWithCache, getPocketSetIds } from '@/src/lib/cardDataCache';
 import { useViewMode } from '@/src/lib/viewModeStorage';
+import { parseCardQuery } from '@/src/lib/cardQuery';
 import {
   cardImageUrlFromId,
   getCardsByName,
   filterCardsByNameStrict,
   LANGUAGE_OPTIONS,
   normalizeTcgdexImageUrl,
+  getCard,
   type TCGdexCardBrief,
   type TCGdexLang,
 } from '@/src/lib/tcgdex';
@@ -99,14 +101,32 @@ export default function CardDexScreen() {
     setLoading(true);
     setSearched(true);
     try {
+      const parsed = parseCardQuery(q);
+      const exactResults = await Promise.all(
+        selectedLangs.map(async (lang) => {
+          if (parsed.kind === 'none') return [];
+          const cardId = parsed.kind === 'cardId' ? parsed.cardId : parsed.cardId;
+          const card = await getCard(lang, cardId).catch(() => null);
+          if (!card) return [];
+          const brief: CardWithLang = {
+            id: card.id,
+            name: card.name,
+            localId: card.localId,
+            image: card.image ?? null,
+            set: card.set,
+            lang,
+          };
+          return [brief];
+        })
+      );
+
       const results = await Promise.all(
         selectedLangs.map(async (lang) => {
           let briefs = await getCardsByName(lang, q, { exact: false });
-          if (!q.includes(' ')) briefs = filterCardsByNameStrict(briefs ?? [], q);
           return briefs.slice(0, MAX_RESULTS_PER_LANG).map((b) => ({ ...b, lang }));
         })
       );
-      let merged: CardWithLang[] = results.flat();
+      let merged: CardWithLang[] = [...exactResults.flat(), ...results.flat()];
       const pocketIds = await getPocketSetIds();
       const pocketSet = new Set(pocketIds);
       merged = merged.filter((c) => !pocketSet.has(getSetIdFromCardId(c.id)));
@@ -125,7 +145,12 @@ export default function CardDexScreen() {
         if (dateA !== dateB) return dateA.localeCompare(dateB);
         return a.id.localeCompare(b.id);
       });
-      merged = merged.map((c) => ({
+      const seen = new Set<string>();
+      merged = merged.filter((c) => {
+        if (seen.has(`${c.lang}:${c.id}`)) return false;
+        seen.add(`${c.lang}:${c.id}`);
+        return true;
+      }).map((c) => ({
         ...c,
         setName: setNamesById[getSetIdFromCardId(c.id)] ?? getSetIdFromCardId(c.id),
       }));

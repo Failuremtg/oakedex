@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text } from '@/components/Themed';
+import { GradedCardIcon } from '@/components/GradedCardIcon';
 import { SyncLoadingScreen } from '@/components/SyncLoadingScreen';
 import { useAuth } from '@/src/auth/AuthContext';
 import { isFirebaseConfigured } from '@/src/lib/firebase';
@@ -141,6 +142,7 @@ export default function TrainerIdScreen() {
   const bySetCollections = collections.filter((c) => c.type === 'by_set');
   const singlePokemonCollections = collections.filter((c) => c.type === 'single_pokemon');
   const customCollections = collections.filter((c) => c.type === 'custom');
+  const gradedCollections = collections.filter((c) => c.type === 'graded');
 
   const memberSince = user?.metadata?.creationTime
     ? formatMemberSince((user.metadata as { creationTime?: string }).creationTime)
@@ -259,6 +261,21 @@ export default function TrainerIdScreen() {
         </View>
       ) : (
         <>
+          {/* Settings shortcut */}
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>Menu</Text>
+            <Pressable
+              style={({ pressed }) => [styles.menuRow, pressed && styles.rowPressed]}
+              onPress={() => {
+                hapticLight();
+                router.push('/(tabs)/settings' as any);
+              }}
+            >
+              <Text style={styles.menuRowText}>Settings</Text>
+              <Text style={styles.menuRowHint}>App settings, subscriptions, feedback</Text>
+            </Pressable>
+          </View>
+
           {/* Binder count */}
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>Binders</Text>
@@ -315,7 +332,13 @@ export default function TrainerIdScreen() {
                 const source = { uri: iconUri };
                 return (
                   <View key={c.id} style={styles.binderRow}>
-                    <Image source={source} style={styles.setIcon} resizeMode="contain" />
+                    {c.type === 'graded' ? (
+                      <View style={styles.setIcon}>
+                        <GradedCardIcon size={34} />
+                      </View>
+                    ) : (
+                      <Image source={source} style={styles.setIcon} resizeMode="contain" />
+                    )}
                     <View style={styles.binderRowContent}>
                       <Text style={styles.binderName}>{getCollectionDisplayName(c)}</Text>
                       <Text style={styles.binderProgress}>
@@ -354,7 +377,13 @@ export default function TrainerIdScreen() {
                     : { uri: normalizeTcgdexImageUrl(iconUri) ?? iconUri };
                 return (
                   <View key={c.id} style={styles.binderRow}>
-                    <Image source={source} style={styles.setIcon} resizeMode="contain" />
+                    {c.type === 'graded' ? (
+                      <View style={styles.setIcon}>
+                        <GradedCardIcon size={34} />
+                      </View>
+                    ) : (
+                      <Image source={source} style={styles.setIcon} resizeMode="contain" />
+                    )}
                     <View style={styles.binderRowContent}>
                       <Text style={styles.binderName}>{getCollectionDisplayName(c)}</Text>
                       <Text style={styles.binderProgress}>
@@ -394,7 +423,13 @@ export default function TrainerIdScreen() {
                     : { uri: normalizeTcgdexImageUrl(iconUri) ?? iconUri };
                 return (
                   <View key={c.id} style={styles.binderRow}>
-                    <Image source={source} style={styles.setIcon} resizeMode="contain" />
+                    {c.type === 'graded' ? (
+                      <View style={styles.setIcon}>
+                        <GradedCardIcon size={34} />
+                      </View>
+                    ) : (
+                      <Image source={source} style={styles.setIcon} resizeMode="contain" />
+                    )}
                     <View style={styles.binderRowContent}>
                       <Text style={styles.binderName}>{getCollectionDisplayName(c)}</Text>
                       <Text style={styles.binderSubtitle}>{subtitle}</Text>
@@ -419,33 +454,45 @@ export default function TrainerIdScreen() {
             </View>
           )}
 
-          {/* Test: clear all binders */}
-          <View style={styles.section}>
-            <Text style={styles.sectionLabel}>Test</Text>
-            <Pressable
-              style={({ pressed }) => [styles.clearAllButton, pressed && styles.rowPressed]}
-              onPress={() => {
-                hapticLight();
-                Alert.alert(
-                  'Clear all binders?',
-                  'This will remove every collection (local and synced). You cannot undo this.',
-                  [
-                    { text: 'Cancel', style: 'cancel' },
-                    {
-                      text: 'Clear all',
-                      style: 'destructive',
-                      onPress: async () => {
-                        await clearAllCollections();
-                        await load();
-                      },
-                    },
-                  ]
+          {/* Graded collections: slab icon + progress */}
+          {gradedCollections.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionLabel}>Graded collections</Text>
+              {gradedCollections.map((c) => {
+                const prog = progressById[c.id];
+                const total = prog?.total ?? null;
+                const filled = prog?.filled ?? 0;
+                const subtitle = getCollectionSubtitle(c);
+                return (
+                  <View key={c.id} style={styles.binderRow}>
+                    <View style={styles.setIcon}>
+                      <GradedCardIcon size={34} />
+                    </View>
+                    <View style={styles.binderRowContent}>
+                      <Text style={styles.binderName}>{getCollectionDisplayName(c)}</Text>
+                      <Text style={styles.binderSubtitle}>{subtitle}</Text>
+                      <Text style={styles.binderProgress}>
+                        {filled}
+                        {total != null ? ` / ${total}` : ''} collected
+                      </Text>
+                    </View>
+                    {total != null && total > 0 && (
+                      <View style={styles.progressBarOuter}>
+                        <View
+                          style={[
+                            styles.progressBarFill,
+                            { width: `${Math.min(100, (filled / total) * 100)}%` },
+                          ]}
+                        />
+                      </View>
+                    )}
+                  </View>
                 );
-              }}
-            >
-              <Text style={styles.clearAllButtonText}>Clear all binders (test)</Text>
-            </Pressable>
-          </View>
+              })}
+            </View>
+          )}
+
+          {/* Removed: clear-all-binders test action */}
         </>
       )}
     </ScrollView>
@@ -531,6 +578,13 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     marginBottom: 10,
   },
+  menuRow: {
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 12,
+    padding: 14,
+  },
+  menuRowText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  menuRowHint: { color: 'rgba(255,255,255,0.65)', fontSize: 12, marginTop: 4 },
   statBig: { fontSize: 32, fontWeight: 'bold', color: '#fff' },
   statHint: { fontSize: 14, color: 'rgba(255,255,255,0.6)', marginTop: 4 },
 
@@ -560,13 +614,4 @@ const styles = StyleSheet.create({
     borderRadius: 3,
     backgroundColor: 'rgba(76, 175, 80, 0.9)',
   },
-  clearAllButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 10,
-    backgroundColor: 'rgba(244, 67, 54, 0.25)',
-    borderWidth: 1,
-    borderColor: 'rgba(244, 67, 54, 0.4)',
-  },
-  clearAllButtonText: { fontSize: 14, color: 'rgba(255,255,255,0.9)' },
 });

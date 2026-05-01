@@ -1,5 +1,5 @@
-import { useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -28,6 +28,7 @@ type AdminCheckResult =
 
 export default function SettingsScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ feedback?: string }>();
   const { user, signOut } = useAuth();
   const { isAdmin, loading, refetch } = useIsAdmin(user);
   const { isSubscriber, isLoading: subLoading, restorePurchases, presentCustomerCenter } = useSubscription();
@@ -38,6 +39,13 @@ export default function SettingsScreen() {
   const [feedbackModalVisible, setFeedbackModalVisible] = useState(false);
   const [feedbackText, setFeedbackText] = useState('');
   const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
+
+  // When navigated with ?feedback=1, open the feedback modal automatically.
+  useEffect(() => {
+    const v = params.feedback;
+    const flag = Array.isArray(v) ? v[0] : v;
+    if (flag === '1') setFeedbackModalVisible(true);
+  }, [params.feedback]);
 
   const onCheckAdminConfig = useCallback(async () => {
     if (!user) return;
@@ -440,6 +448,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   rowPressed: { opacity: 0.8 },
+  disabled: { opacity: 0.5 },
   rowText: { fontSize: 16, fontWeight: '600', color: '#fff' },
   rowHint: { fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 4 },
   hint: { fontSize: 13, color: 'rgba(255,255,255,0.6)', marginBottom: 10 },

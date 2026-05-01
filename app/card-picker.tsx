@@ -16,7 +16,7 @@ import { getPocketSetIds } from '@/src/lib/cardDataCache';
 import { getTcgSearchName, isOldMegaCardName, getOldMegaSearchNames } from '@/src/lib/masterSetExpansion';
 import { getCard, getCardsByName, filterCardsByNameStrict, type TCGdexLang } from '@/src/lib/tcgdex';
 import { addMasterBallIfEligible, cardHasMasterBall } from '@/src/lib/masterBallSets';
-import { getVariantLabel, getVariantsFromCard, type CardVariant } from '@/src/types';
+import { filterVariantsBySetAndLanguage, getVariantLabel, getVariantsFromCard, hasFirstEditionOption, type CardVariant } from '@/src/types';
 import type { PokemonSummary } from '@/src/types';
 
 const LANG: TCGdexLang = 'en';
@@ -37,7 +37,7 @@ export default function CardPickerScreen() {
   const { collectionId, slotKey, binderType, pokemonName } = params;
 
   const [step, setStep] = useState<'list' | 'variant'>('list');
-  const [cards, setCards] = useState<Array<{ id: string; name: string; localId: string; image?: string }>>([]);
+  const [cards, setCards] = useState<Array<{ id: string; name: string; localId: string; image?: string | null; setName?: string }>>([]);
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [variants, setVariants] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
@@ -54,45 +54,48 @@ export default function CardPickerScreen() {
         setLoading(false);
         return;
       }
-      if (isSinglePokemon) {
-        const full = await getCard(LANG, slotKey);
-        if (!cancelled && full) {
-          setCards([{ id: full.id, name: full.name, localId: full.localId, image: full.image }]);
-          setSelectedCardId(full.id);
-          setVariants(full.variants && typeof full.variants === 'object' ? full.variants : {});
-          setStep('variant');
-        }
-      } else if (isBySet) {
-        const full = await getCard(LANG, slotKey);
-        if (!cancelled && full) {
-          setCards([{ id: full.id, name: full.name, localId: full.localId, image: full.image }]);
-          setSelectedCardId(full.id);
-          setVariants(full.variants && typeof full.variants === 'object' ? full.variants : {});
-          setStep('variant');
-        }
-      } else if (isCollectThemAll && pokemonName) {
-        const summary: PokemonSummary = {
-          dexId: 0,
-          name: pokemonName,
-          form: pokemonName.startsWith('Gigantamax ') ? 'gmax' : pokemonName.startsWith('Mega ') ? (pokemonName.includes(' X') ? 'mega-x' : pokemonName.includes(' Y') ? 'mega-y' : 'mega') : undefined,
-        };
-        const searchName = getTcgSearchName(summary);
-        let list = await getCardsByName(LANG, searchName, { exact: false });
-        if (summary.form?.startsWith('mega')) {
-          for (const oldName of getOldMegaSearchNames(summary)) {
-            const extra = await getCardsByName(LANG, oldName, { exact: false });
-            const seen = new Set((list ?? []).map((c) => c.id));
-            for (const c of extra ?? []) if (!seen.has(c.id)) { list = [...(list ?? []), c]; seen.add(c.id); }
+      try {
+        if (isSinglePokemon) {
+          const full = await getCard(LANG, slotKey);
+          if (!cancelled && full) {
+            setCards([{ id: full.id, name: full.name, localId: full.localId, image: full.image, setName: full.set?.name }]);
+            setSelectedCardId(full.id);
+            setVariants(full.variants && typeof full.variants === 'object' ? full.variants : {});
+            setStep('variant');
           }
-        } else {
-          list = filterCardsByNameStrict(list ?? [], searchName).filter((c) => !isOldMegaCardName(c.name ?? ''));
+        } else if (isBySet) {
+          const full = await getCard(LANG, slotKey);
+          if (!cancelled && full) {
+            setCards([{ id: full.id, name: full.name, localId: full.localId, image: full.image, setName: full.set?.name }]);
+            setSelectedCardId(full.id);
+            setVariants(full.variants && typeof full.variants === 'object' ? full.variants : {});
+            setStep('variant');
+          }
+        } else if (isCollectThemAll && pokemonName) {
+          const summary: PokemonSummary = {
+            dexId: 0,
+            name: pokemonName,
+            form: pokemonName.startsWith('Gigantamax ') ? 'gmax' : pokemonName.startsWith('Mega ') ? (pokemonName.includes(' X') ? 'mega-x' : pokemonName.includes(' Y') ? 'mega-y' : 'mega') : undefined,
+          };
+          const searchName = getTcgSearchName(summary);
+          let list = await getCardsByName(LANG, searchName, { exact: false });
+          if (summary.form?.startsWith('mega')) {
+            for (const oldName of getOldMegaSearchNames(summary)) {
+              const extra = await getCardsByName(LANG, oldName, { exact: false });
+              const seen = new Set((list ?? []).map((c) => c.id));
+              for (const c of extra ?? []) if (!seen.has(c.id)) { list = [...(list ?? []), c]; seen.add(c.id); }
+            }
+          } else {
+            list = filterCardsByNameStrict(list ?? [], searchName).filter((c) => !isOldMegaCardName(c.name ?? ''));
+          }
+          const pocketIds = await getPocketSetIds();
+          const pocketSet = new Set(pocketIds);
+          const filtered = (list ?? []).filter((c) => !pocketSet.has(setIdFromCardId(c.id)));
+          if (!cancelled) setCards(filtered);
         }
-        const pocketIds = await getPocketSetIds();
-        const pocketSet = new Set(pocketIds);
-        const filtered = (list ?? []).filter((c) => !pocketSet.has(setIdFromCardId(c.id)));
-        if (!cancelled) setCards(filtered);
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-      if (!cancelled) setLoading(false);
     })();
     return () => {
       cancelled = true;
@@ -103,6 +106,13 @@ export default function CardPickerScreen() {
     setSelectedCardId(cardId);
     const full = await getCard(LANG, cardId);
     if (full?.variants) setVariants(full.variants);
+    if (full) {
+      setCards((prev) =>
+        prev.map((c) =>
+          c.id === cardId ? { ...c, image: full.image, localId: full.localId, name: full.name, setName: full.set?.name } : c
+        )
+      );
+    }
     setStep('variant');
   }, []);
 
@@ -156,6 +166,8 @@ export default function CardPickerScreen() {
       card?.localId,
       { name: card?.name }
     );
+    const allowFirstEd = hasFirstEditionOption(card?.setName, LANG);
+    const finalVariants = filterVariantsBySetAndLanguage(validVariants, card?.setName, LANG);
     return (
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
         <CachedImage
@@ -167,7 +179,7 @@ export default function CardPickerScreen() {
         <Text style={styles.cardName}>{card?.name}</Text>
         <Text style={styles.setInfo}>#{card?.localId}</Text>
         <Text style={styles.variantTitle}>Which version do you have?</Text>
-        {validVariants.map((variant) => (
+        {finalVariants.map((variant) => (
           <Pressable
             key={variant}
             style={({ pressed }) => [styles.variantButton, pressed && styles.variantPressed]}
@@ -177,6 +189,9 @@ export default function CardPickerScreen() {
             <Text style={styles.variantButtonText}>{getVariantLabel(variant)}</Text>
           </Pressable>
         ))}
+        {!allowFirstEd && (
+          <Text style={styles.variantHint}>1st Edition is not available for this set/language.</Text>
+        )}
         <Pressable
           style={({ pressed }) => [styles.clearButton, pressed && styles.variantPressed]}
           onPress={clearSlot}
@@ -257,6 +272,7 @@ const styles = StyleSheet.create({
   },
   variantPressed: { opacity: 0.8 },
   variantButtonText: { fontSize: 16, textAlign: 'center' },
+  variantHint: { marginTop: 10, fontSize: 12, opacity: 0.7, textAlign: 'center' },
   clearButton: {
     marginTop: 24,
     padding: 16,

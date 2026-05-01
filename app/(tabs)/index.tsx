@@ -15,12 +15,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { BinderCover } from '@/components/BinderCover';
+import { GradedCardIcon } from '@/components/GradedCardIcon';
 import { SyncLoadingScreen } from '@/components/SyncLoadingScreen';
 import { WelcomeModal } from '@/components/WelcomeModal';
 import { charcoal } from '@/constants/Colors';
 
 import { getBinderColorHex } from '@/src/constants/binderColors';
-import { setWelcomeDismissed, shouldShowWelcome } from '@/src/lib/welcomeStorage';
+import { useAuth } from '@/src/auth/AuthContext';
+import { setEarlyAccessNewsShown, shouldShowEarlyAccessNews } from '@/src/lib/earlyAccessNews';
 import {
   getCachedCollections,
   getCollectionsInDisplayOrder,
@@ -36,6 +38,7 @@ import {
   isGrandmasterCollection,
 } from '@/src/lib/collectionDisplay';
 import { hapticLight } from '@/src/lib/haptics';
+import { shouldShowOnboarding } from '@/src/lib/onboardingStorage';
 
 /** Binder height as ratio of width (spine proportion). */
 const BINDER_ASPECT = 120 / 88;
@@ -59,10 +62,12 @@ const RIBBON_ICON_SIZE = 72;
 export default function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { user } = useAuth();
   const [shelfItems, setShelfItems] = useState<Collection[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [showWelcome, setShowWelcome] = useState(false);
+  const [showNews, setShowNews] = useState(false);
 
   const bottomReserved = TAB_BAR_HEIGHT + insets.bottom;
   const headerHeight =
@@ -74,39 +79,28 @@ export default function HomeScreen() {
     swipeX.setValue(0);
     const runOneSwipe = () =>
       Animated.sequence([
-        Animated.timing(swipeX, {
-          toValue: 14,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-        Animated.timing(swipeX, {
-          toValue: -14,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-        Animated.timing(swipeX, {
-          toValue: 14,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-        Animated.timing(swipeX, {
-          toValue: 0,
-          duration: 200,
-          useNativeDriver: true,
-        }),
+        Animated.timing(swipeX, { toValue: 14,  duration: 200, useNativeDriver: true }),
+        Animated.timing(swipeX, { toValue: -14, duration: 200, useNativeDriver: true }),
+        Animated.timing(swipeX, { toValue: 14,  duration: 200, useNativeDriver: true }),
+        Animated.timing(swipeX, { toValue: 0,   duration: 200, useNativeDriver: true }),
       ]);
-    runOneSwipe().start();
-    const t2 = setTimeout(() => runOneSwipe().start(), 800);
-    const t3 = setTimeout(() => runOneSwipe().start(), 1600);
+    // Track all three animation instances so we can stop them on cleanup
+    const a1 = runOneSwipe();
+    a1.start();
+    const t2 = setTimeout(() => { const a2 = runOneSwipe(); a2.start(); }, 800);
+    const t3 = setTimeout(() => { const a3 = runOneSwipe(); a3.start(); }, 1600);
     return () => {
       clearTimeout(t2);
       clearTimeout(t3);
+      a1.stop();
+      swipeX.stopAnimation();
     };
   }, [shelfItems.length, swipeX]);
 
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
+      setLoadError(false);
       const cached = getCachedCollections();
       if (cached != null && cached.length >= 0) {
         setShelfItems(cached);
@@ -120,7 +114,10 @@ export default function HomeScreen() {
             setCachedCollections(list);
           }
         } catch {
-          if (!cancelled) setShelfItems([]);
+          // Only show error if we have no cached data to fall back on
+          if (!cancelled && (getCachedCollections()?.length ?? 0) === 0) {
+            setLoadError(true);
+          }
         } finally {
           if (!cancelled) setLoading(false);
         }
@@ -131,26 +128,42 @@ export default function HomeScreen() {
     }, [])
   );
 
-/** Welcome modal: show only the first time the app is opened (first focus of Collections tab this session), not every time you navigate to the collection page. */
-  const welcomeCheckedRef = useRef(false);
+/** Onboarding: show once on first app open (this session check). */
+  const onboardingCheckedRef = useRef(false);
   useFocusEffect(
     useCallback(() => {
-      if (welcomeCheckedRef.current) return;
-      welcomeCheckedRef.current = true;
+      if (onboardingCheckedRef.current) return;
+      onboardingCheckedRef.current = true;
+      shouldShowOnboarding().then((show) => {
+        if (show) router.replace('/onboarding');
+      });
+    }, [router])
+  );
+
+  // Early access popup: show first time user logs in, then every 48h on app open.
+  const newsCheckedRef = useRef<string | null>(null);
+  useFocusEffect(
+    useCallback(() => {
+      const uid = user?.uid ?? null;
+      if (!uid) return;
+      // Prevent repeated checks on rapid focus changes for same uid.
+      if (newsCheckedRef.current === uid) return;
+      newsCheckedRef.current = uid;
       let cancelled = false;
-      shouldShowWelcome().then((show) => {
-        if (!cancelled) setShowWelcome(show);
+      shouldShowEarlyAccessNews(uid).then((show) => {
+        if (!cancelled) setShowNews(show);
       });
       return () => {
         cancelled = true;
       };
-    }, [])
+    }, [user?.uid])
   );
 
-  const dismissWelcome = useCallback(async () => {
-    await setWelcomeDismissed();
-    setShowWelcome(false);
-  }, []);
+  const dismissNews = useCallback(async () => {
+    const uid = user?.uid;
+    if (uid) await setEarlyAccessNewsShown(uid);
+    setShowNews(false);
+  }, [user?.uid]);
 
   useFocusEffect(
     useCallback(() => {
@@ -172,6 +185,29 @@ export default function HomeScreen() {
     return (
       <View style={styles.screen}>
         <SyncLoadingScreen statusText="Loading collections..." />
+      </View>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <View style={[styles.screen, styles.centered]}>
+        <Text style={styles.errorMsg}>Couldn't load your collections.</Text>
+        <Pressable
+          style={({ pressed }) => [styles.retryBtn, pressed && styles.cardPressed]}
+          onPress={() => {
+            hapticLight();
+            setLoadError(false);
+            setLoading(true);
+            loadCollectionsForDisplay()
+              .then(getCollectionsInDisplayOrder)
+              .then((list) => { setShelfItems(list); setCachedCollections(list); })
+              .catch(() => setLoadError(true))
+              .finally(() => setLoading(false));
+          }}
+        >
+          <Text style={styles.retryBtnText}>Try again</Text>
+        </Pressable>
       </View>
     );
   }
@@ -225,16 +261,22 @@ export default function HomeScreen() {
               </View>
               <View style={styles.ribbonIconWrap}>
                 <View style={styles.ribbonIconOuter}>
-                  <Image
-                    source={
-                      (() => {
-                        const uri = getCollectionIconUri(coll);
-                        return uri === POKE_BALL_ICON_BW_SENTINEL ? require('@/assets/images/pokeball-bw.png') : { uri };
-                      })()
-                    }
-                    style={styles.ribbonIcon}
-                    resizeMode="contain"
-                  />
+                  {coll.type === 'graded' ? (
+                    <View style={styles.ribbonIcon}>
+                      <GradedCardIcon size={RIBBON_ICON_SIZE - 10} />
+                    </View>
+                  ) : (
+                    <Image
+                      source={
+                        (() => {
+                          const uri = getCollectionIconUri(coll);
+                          return uri === POKE_BALL_ICON_BW_SENTINEL ? require('@/assets/images/pokeball-bw.png') : { uri };
+                        })()
+                      }
+                      style={styles.ribbonIcon}
+                      resizeMode="contain"
+                    />
+                  )}
                   {isGrandmasterCollection(coll) && (
                     <View style={styles.ribbonStarBadge} pointerEvents="none">
                       <FontAwesome name="star" size={16} color="#000" style={styles.ribbonStarOutline} />
@@ -252,7 +294,11 @@ export default function HomeScreen() {
   if (shelfItems.length === 0) {
     return (
       <>
-        <WelcomeModal visible={showWelcome} onDismiss={dismissWelcome} />
+        <WelcomeModal
+          visible={!!user?.uid && showNews}
+          onDismiss={dismissNews}
+          onOpenFeedback={() => router.push('/(tabs)/settings?feedback=1' as any)}
+        />
         <View style={styles.screen}>
           <View style={[styles.headerOuter, { paddingTop: insets.top + HEADER_TOP_EXTRA }]}>
             <View style={styles.headerContent}>
@@ -307,7 +353,11 @@ export default function HomeScreen() {
 
   return (
     <>
-      <WelcomeModal visible={showWelcome} onDismiss={dismissWelcome} />
+      <WelcomeModal
+        visible={!!user?.uid && showNews}
+        onDismiss={dismissNews}
+        onOpenFeedback={() => router.push('/(tabs)/settings?feedback=1' as any)}
+      />
       <View style={styles.screen}>
         <View
           style={[
@@ -367,6 +417,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  errorMsg: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 16,
+    textAlign: 'center',
+    marginHorizontal: 32,
+    marginBottom: 16,
+  },
+  retryBtn: {
+    paddingVertical: 12,
+    paddingHorizontal: 28,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+  },
+  retryBtnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
   headerOuter: {
     alignItems: 'center',
     paddingHorizontal: 16,

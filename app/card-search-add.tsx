@@ -19,7 +19,7 @@ import { CARD_VARIANTS } from '@/src/types';
 
 const LANG: TCGdexLang = 'en';
 
-type CardBrief = { id: string; name: string; localId: string; image?: string | null; set?: { id: string; name: string }; variant?: CardVariant };
+type CardBrief = { id: string; name: string; localId: string; image?: string | null; set?: { id: string; name?: string }; variant?: CardVariant };
 
 export default function CardSearchAddScreen() {
   const params = useLocalSearchParams<{ collectionId: string; slotKey?: string }>();

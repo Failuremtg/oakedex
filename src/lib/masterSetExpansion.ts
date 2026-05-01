@@ -64,6 +64,12 @@ const MEGA_FORMS: ExtraEntry[] = [
   { baseDexId: 719, name: 'Mega Diancie', form: 'mega' },
 ];
 
+// Primal Reversion (TCG mechanic; shown as its own entry similar to Megas)
+const PRIMAL_FORMS: ExtraEntry[] = [
+  { baseDexId: 382, name: 'Primal Kyogre', form: 'primal' },
+  { baseDexId: 383, name: 'Primal Groudon', form: 'primal' },
+];
+
 // Gigantamax forms (base dex id, full name, form key)
 const GMAX_FORMS: ExtraEntry[] = [
   { baseDexId: 6, name: 'Gigantamax Charizard', form: 'gmax' },
@@ -132,6 +138,8 @@ const REGIONAL_FORMS: ExtraEntry[] = [
   { baseDexId: 144, name: 'Galarian Articuno', form: 'galar' },
   { baseDexId: 145, name: 'Galarian Zapdos', form: 'galar' },
   { baseDexId: 146, name: 'Galarian Moltres', form: 'galar' },
+  { baseDexId: 79, name: 'Galarian Slowpoke', form: 'galar' },
+  { baseDexId: 80, name: 'Galarian Slowbro', form: 'galar' },
   { baseDexId: 199, name: 'Galarian Slowking', form: 'galar' },
   { baseDexId: 222, name: 'Galarian Corsola', form: 'galar' },
   { baseDexId: 263, name: 'Galarian Zigzagoon', form: 'galar' },
@@ -154,7 +162,6 @@ const REGIONAL_FORMS: ExtraEntry[] = [
   { baseDexId: 628, name: 'Hisuian Braviary', form: 'hisui' },
   { baseDexId: 724, name: 'Hisuian Decidueye', form: 'hisui' },
   { baseDexId: 194, name: 'Paldean Wooper', form: 'paldea' },
-  { baseDexId: 128, name: 'Paldean Tauros', form: 'paldea' },
 ];
 
 // Unown variations (28: A–Z, !, ?). Only these – base not included. dexId 201 = Unown
@@ -266,18 +273,6 @@ const MELOETTA_FORMS: ExtraEntry[] = [
   { baseDexId: 648, name: 'Meloetta Pirouette Forme', form: 'pirouette' },
 ];
 
-// Vivillon patterns – 20 (or 3 if you restrict). Keeping full list; base stays in list
-const VIVILLON_PATTERNS = [
-  'Archipelago', 'Continental', 'Elegant', 'Garden', 'High Plains', 'Icy Snow',
-  'Jungle', 'Marine', 'Meadow', 'Modern', 'Monsoon', 'Ocean', 'Polar', 'River',
-  'Sandstorm', 'Savanna', 'Sun', 'Tundra', 'Fancy', 'Poké Ball',
-];
-const VIVILLON_FORMS: ExtraEntry[] = VIVILLON_PATTERNS.map((pattern) => ({
-  baseDexId: 666,
-  name: pattern === 'Poké Ball' ? 'Vivillon (Poké Ball)' : `Vivillon (${pattern})`,
-  form: pattern.toLowerCase().replace(/\s/g, '-').replace('é', 'e'),
-}));
-
 // Hoopa Unbound – 1 (Confined = base)
 const HOOPA_FORMS: ExtraEntry[] = [
   { baseDexId: 720, name: 'Hoopa Unbound', form: 'unbound' },
@@ -380,7 +375,6 @@ export const VARIATION_GROUPS: { id: string; label: string }[] = [
   { id: 'forces_of_nature', label: 'Tornadus/Thundurus/Landorus (3)' },
   { id: 'keldeo', label: 'Keldeo Resolute (1)' },
   { id: 'meloetta', label: 'Meloetta Pirouette (1)' },
-  { id: 'vivillon', label: 'Vivillon patterns (20)' },
   { id: 'hoopa', label: 'Hoopa Unbound (1)' },
   { id: 'oricorio', label: 'Oricorio styles (4)' },
   { id: 'lycanroc', label: 'Lycanroc forms (3)' },
@@ -411,7 +405,6 @@ export const VARIATION_GROUP_SLOT_COUNTS: Record<string, number> = {
   forces_of_nature: FORCES_OF_NATURE_THERIAN.length,
   keldeo: KELDEO_FORMS.length,
   meloetta: MELOETTA_FORMS.length,
-  vivillon: VIVILLON_FORMS.length,
   hoopa: HOOPA_FORMS.length,
   oricorio: ORICORIO_FORMS.length,
   lycanroc: LYCANROC_FORMS.length,
@@ -441,7 +434,6 @@ const VARIATION_ENTRIES: Record<string, ExtraEntry[]> = {
   forces_of_nature: FORCES_OF_NATURE_THERIAN,
   keldeo: KELDEO_FORMS,
   meloetta: MELOETTA_FORMS,
-  vivillon: VIVILLON_FORMS,
   hoopa: HOOPA_FORMS,
   oricorio: ORICORIO_FORMS,
   lycanroc: LYCANROC_FORMS,
@@ -520,10 +512,17 @@ export function getExpandedSpeciesList(
 ): PokemonSummary[] {
   if (!options) return baseList;
 
-  const out = [...baseList];
+  const groups = options.variationGroups ?? (options.variations ? ['unown'] : []);
+
+  // If Unown variations are enabled, remove the base Unown entry (dexId 201, no form)
+  // so the binder only contains the letter forms.
+  const out = groups.includes('unown')
+    ? baseList.filter((p) => !(p.dexId === 201 && !p.form))
+    : [...baseList];
 
   if (options.megas) {
     for (const e of MEGA_FORMS) out.push(extraToSummary(e));
+    for (const e of PRIMAL_FORMS) out.push(extraToSummary(e));
   }
   if (options.gmax) {
     for (const e of GMAX_FORMS) out.push(extraToSummary(e));
@@ -532,22 +531,26 @@ export function getExpandedSpeciesList(
   if (options.regionalForms) {
     for (const e of REGIONAL_FORMS) out.push(extraToSummary(e));
   }
-  const groups = options.variationGroups ?? (options.variations ? ['unown'] : []);
   for (const groupId of groups) {
-    const excludeDexIds = VARIATION_EXCLUDE_BASE[groupId];
-    if (excludeDexIds?.length) {
-      const excludeSet = new Set(excludeDexIds);
-      for (let i = out.length - 1; i >= 0; i--) {
-        const p = out[i];
-        if (excludeSet.has(p.dexId) && !p.form) out.splice(i, 1);
-      }
-    }
     const entries = VARIATION_ENTRIES[groupId];
     if (entries) for (const e of entries) out.push(extraToSummary(e));
   }
 
   // Keep stable order: base by dexId, then extras by baseDexId then form
   return out.sort((a, b) => {
+    // Special-case Unown ordering: A–Z, !, ? (with ? last)
+    if (a.dexId === 201 && b.dexId === 201) {
+      const rank = (p: PokemonSummary): number => {
+        const f = (p.form ?? '').toLowerCase();
+        if (f === 'unown-exclaim') return 26;
+        if (f === 'unown-question') return 27;
+        const m = f.match(/^unown-([a-z])$/);
+        if (m) return Math.max(0, Math.min(25, (m[1].charCodeAt(0) - 97)));
+        // any unexpected Unown forms sort after the known ones
+        return 28;
+      };
+      return rank(a) - rank(b);
+    }
     const aKey = a.form ? `${a.dexId}-${a.form}` : `${a.dexId}`;
     const bKey = b.form ? `${b.dexId}-${b.form}` : `${b.dexId}`;
     return aKey.localeCompare(bKey, undefined, { numeric: true });

@@ -6,6 +6,21 @@
  */
 
 const BASE = 'https://api.pokemontcg.io/v2';
+const DEFAULT_TIMEOUT_MS = 12_000;
+const DEFAULT_RETRIES = 2;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function parseRetryAfterMs(h: string | null): number | null {
+  if (!h) return null;
+  const seconds = Number(h);
+  if (!Number.isNaN(seconds) && seconds > 0) return Math.min(seconds * 1000, 30_000);
+  const dt = Date.parse(h);
+  if (!Number.isNaN(dt)) return Math.min(Math.max(dt - Date.now(), 0), 30_000);
+  return null;
+}
 
 export interface PokemonTcgApiCard {
   id: string;
@@ -35,7 +50,7 @@ async function getCachedFallback(cardId: string): Promise<{ imageLarge: string; 
   const cached = memoryCache.get(cardId);
   if (cached) return cached;
   try {
-    const { AsyncStorage } = await import('@react-native-async-storage/async-storage');
+    const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
     const raw = await AsyncStorage.getItem(CACHE_KEY_PREFIX + cardId.replace(/[^a-zA-Z0-9-]/g, '_'));
     if (!raw) return null;
     const parsed = JSON.parse(raw) as { imageLarge: string; imageSmall: string; name?: string; set?: { id: string; name: string }; ts: number };
@@ -54,7 +69,7 @@ async function setCachedFallback(
 ): Promise<void> {
   memoryCache.set(cardId, data);
   try {
-    const { AsyncStorage } = await import('@react-native-async-storage/async-storage');
+    const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
     const key = CACHE_KEY_PREFIX + cardId.replace(/[^a-zA-Z0-9-]/g, '_');
     await AsyncStorage.setItem(key, JSON.stringify({ ...data, ts: Date.now() }));
   } catch {
@@ -76,19 +91,50 @@ async function fetchCardById(
   headers: Record<string, string>
 ): Promise<{ imageLarge: string; imageSmall: string; name?: string; set?: { id: string; name: string } } | null> {
   const url = `${BASE}/cards/${encodeURIComponent(cardId)}?select=id,name,number,set,images`;
-  const res = await fetch(url, { headers });
-  if (!res.ok) return null;
-  const json = (await res.json()) as PokemonTcgApiCardResponse;
-  const data = json?.data;
-  if (!data?.images?.large && !data?.images?.small) return null;
-  const imageLarge = data.images?.large ?? data.images?.small ?? '';
-  const imageSmall = data.images?.small ?? data.images?.large ?? '';
-  return {
-    imageLarge,
-    imageSmall,
-    name: data.name,
-    set: data.set ? { id: data.set.id, name: data.set.name } : undefined,
-  };
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= DEFAULT_RETRIES; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
+    try {
+      const res = await fetch(url, { headers, signal: controller.signal });
+      if (res.ok) {
+        const json = (await res.json()) as PokemonTcgApiCardResponse;
+        const data = json?.data;
+        if (!data?.images?.large && !data?.images?.small) return null;
+        const imageLarge = data.images?.large ?? data.images?.small ?? '';
+        const imageSmall = data.images?.small ?? data.images?.large ?? '';
+        return {
+          imageLarge,
+          imageSmall,
+          name: data.name,
+          set: data.set ? { id: data.set.id, name: data.set.name } : undefined,
+        };
+      }
+
+      // Non-retryable: not found / bad request / unauthorized, etc.
+      if (res.status >= 400 && res.status < 500 && res.status !== 429) return null;
+
+      if (attempt === DEFAULT_RETRIES) return null;
+      const retryAfter = parseRetryAfterMs(res.headers.get('retry-after'));
+      const backoff = retryAfter ?? Math.min(600 * Math.pow(2, attempt), 5_000);
+      await sleep(backoff);
+    } catch (e) {
+      lastError = e;
+      const isAbort = e instanceof Error && e.name === 'AbortError';
+      if (attempt === DEFAULT_RETRIES) {
+        // Timeout/network errors should not crash primary flow; fallback just returns null.
+        void isAbort;
+        return null;
+      }
+      const backoff = Math.min(600 * Math.pow(2, attempt), 5_000);
+      await sleep(backoff);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  void lastError;
+  return null;
 }
 
 /**

@@ -2,7 +2,14 @@
  * Oakedex data model – binders, slots, card references.
  */
 
-export type BinderType = 'collect_them_all' | 'master_dex' | 'master_set' | 'single_pokemon' | 'by_set' | 'custom';
+export type BinderType =
+  | 'collect_them_all'
+  | 'master_dex'
+  | 'master_set'
+  | 'single_pokemon'
+  | 'by_set'
+  | 'custom'
+  | 'graded';
 
 /** Options when creating a Master Set (one of each Pokémon). All true = Grandmaster Collection. */
 export interface MasterSetOptions {
@@ -79,21 +86,73 @@ export function filterVariantsBySetCardCount(
   return out.length > 0 ? out : variants;
 }
 
-/** Last set that had 1st Edition was Skyridge (2003). Sets released after this are Unlimited only. */
-export const LAST_FIRST_EDITION_RELEASE_DATE = '2003-12-31';
+/**
+ * Source of truth for when "1st Edition" should be selectable in UI.
+ * This does NOT remove sets/cards; it only controls whether the variant option is available.
+ */
+const FIRST_EDITION_ENGLISH_SETS = new Set([
+  'base set',
+  'jungle',
+  'fossil',
+  'team rocket',
+  'gym heroes',
+  'gym challenge',
+  'neo genesis',
+  'neo discovery',
+  'neo revelation',
+  'neo destiny',
+]);
 
-/** True if the set had a 1st Edition print run (release date on or before Skyridge 2003). */
-export function setHasFirstEdition(releaseDate: string | undefined): boolean {
-  if (!releaseDate || typeof releaseDate !== 'string') return true; // unknown date: allow 1st ed
-  return releaseDate <= LAST_FIRST_EDITION_RELEASE_DATE;
+const FIRST_EDITION_EUROPEAN: Record<string, Set<string>> = {
+  // Base/Jungle/Fossil: de, fr, it, es, nl (nl not currently supported as an app language)
+  'base set': new Set(['de', 'fr', 'it', 'es', 'nl']),
+  jungle: new Set(['de', 'fr', 'it', 'es', 'nl']),
+  fossil: new Set(['de', 'fr', 'it', 'es', 'nl']),
+
+  // Team Rocket: de, fr, it, es
+  'team rocket': new Set(['de', 'fr', 'it', 'es']),
+
+  // Gym Heroes / Gym Challenge: de, fr
+  'gym heroes': new Set(['de', 'fr']),
+  'gym challenge': new Set(['de', 'fr']),
+};
+
+function normalizeSetNameForEdition(setName: string): string {
+  return setName
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .replace(/[^a-z0-9\s]/g, '');
 }
 
-/** Remove firstEdition from variants when the set is after Skyridge (no 1st Edition in those sets). */
-export function filterVariantsBySetReleaseDate(
+function normalizeLangCodeForEdition(language: string): string {
+  return language.trim().toLowerCase();
+}
+
+/**
+ * True only when the set/language combination is known to have a 1st Edition print run.
+ * If we can't identify the set name or language, we default to false (conservative).
+ */
+export function hasFirstEditionOption(
+  setName: string | null | undefined,
+  language: string | null | undefined
+): boolean {
+  if (!setName || !language) return false;
+  const s = normalizeSetNameForEdition(setName);
+  const lang = normalizeLangCodeForEdition(language);
+
+  if (lang === 'en') return FIRST_EDITION_ENGLISH_SETS.has(s);
+  const supportedLangs = FIRST_EDITION_EUROPEAN[s];
+  return supportedLangs ? supportedLangs.has(lang) : false;
+}
+
+/** Remove firstEdition from variant list when not available for this set/language. */
+export function filterVariantsBySetAndLanguage(
   variants: CardVariant[],
-  releaseDate: string | undefined
+  setName: string | null | undefined,
+  language: string | null | undefined
 ): CardVariant[] {
-  if (setHasFirstEdition(releaseDate)) return variants;
+  if (hasFirstEditionOption(setName, language)) return variants;
   return variants.filter((v) => v !== 'firstEdition');
 }
 
@@ -139,6 +198,12 @@ export interface SlotCard {
   variant: CardVariant;
   /** For Single-Pokemon multi-language: language code (e.g. 'en'). */
   language?: string;
+  /**
+   * Optional visual override: when true, render holo gradient overlay;
+   * when false, suppress it even if variant is holo/reverse.
+   * Undefined means "auto" (based on variant).
+   */
+  holoEffect?: boolean;
 }
 
 /**
@@ -181,7 +246,25 @@ export interface Collection {
   binderColor?: string;
   slots: Slot[];
   /** Local-only: display name, set name, optional collector number; optional slotKey for version-choice cards (master/set); optional variant. */
-  userCards?: Record<string, { name: string; setName: string; localId?: string; slotKey?: string; variant?: CardVariant }>;
+  userCards?: Record<
+    string,
+    {
+      name: string;
+      setName: string;
+      localId?: string;
+      /**
+       * For graded collections.
+       * - gradingService: PSA, CGC, BGS, etc. (free text for now)
+       * - grade: PSA scale option (e.g. "10", "8.5", "Authentic")
+       */
+      gradingService?: string;
+      grade?: string;
+      /** Back-compat from early graded prototype. Prefer gradingService+grade. */
+      grading?: string;
+      slotKey?: string;
+      variant?: CardVariant;
+    }
+  >;
   createdAt: number;
   updatedAt: number;
 }
@@ -231,6 +314,8 @@ export type DefaultCardOverrides = Record<string, string>;
 
 /** Variants object like TCGdex (which variants the card has). */
 export interface CardVariantsMap {
+  /** Allow safe indexing (treat unknown keys as absent). */
+  [key: string]: boolean | undefined;
   normal: boolean;
   reverse: boolean;
   holo: boolean;

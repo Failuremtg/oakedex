@@ -81,7 +81,11 @@ export interface TCGdexCardBrief {
   id: string;
   localId: string;
   name: string;
-  image?: string;
+  image?: string | null;
+  /**
+   * Some endpoints/variants include set info in brief responses; keep optional so callers can display set name when present.
+   */
+  set?: { id: string; name?: string };
 }
 
 /** TCGdex pricing – Cardmarket (EUR) and TCGplayer (USD). Included in card response. */
@@ -140,10 +144,59 @@ export interface TCGdexCard {
   pricing?: TCGdexPricing;
 }
 
-async function fetchJson<T>(url: string): Promise<T> {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`TCGdex ${res.status}: ${url}`);
-  return res.json() as Promise<T>;
+const DEFAULT_TIMEOUT_MS = 15_000;
+const DEFAULT_RETRIES = 2;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function parseRetryAfterMs(h: string | null): number | null {
+  if (!h) return null;
+  const seconds = Number(h);
+  if (!Number.isNaN(seconds) && seconds > 0) return Math.min(seconds * 1000, 30_000);
+  const dt = Date.parse(h);
+  if (!Number.isNaN(dt)) return Math.min(Math.max(dt - Date.now(), 0), 30_000);
+  return null;
+}
+
+async function fetchJson<T>(
+  url: string,
+  options?: { timeoutMs?: number; retries?: number }
+): Promise<T> {
+  const timeoutMs = options?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const retries = options?.retries ?? DEFAULT_RETRIES;
+
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(url, { signal: controller.signal });
+      if (res.ok) return res.json() as Promise<T>;
+
+      const retryable = res.status === 429 || res.status >= 500;
+      const hint = `TCGdex ${res.status}: ${url}`;
+      if (!retryable || attempt === retries) throw new Error(hint);
+
+      const retryAfter = parseRetryAfterMs(res.headers.get('retry-after'));
+      const backoff = retryAfter ?? Math.min(500 * Math.pow(2, attempt), 4_000);
+      await sleep(backoff);
+    } catch (e) {
+      lastError = e;
+      const isAbort = e instanceof Error && e.name === 'AbortError';
+      if (attempt === retries) {
+        if (isAbort) throw new Error(`TCGdex timeout after ${timeoutMs}ms: ${url}`);
+        throw e;
+      }
+      const backoff = Math.min(500 * Math.pow(2, attempt), 4_000);
+      await sleep(backoff);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error(`TCGdex request failed: ${url}`);
 }
 
 /**
@@ -230,17 +283,24 @@ export async function getCard(lang: TCGdexLang, cardId: string): Promise<TCGdexC
 export async function getCardsByName(
   lang: TCGdexLang,
   name: string,
-  options?: { exact?: boolean }
+  options?: { exact?: boolean; page?: number; itemsPerPage?: number }
 ): Promise<TCGdexCardBrief[]> {
   const exact = options?.exact ?? false;
+  const page = options?.page;
+  const itemsPerPage = options?.itemsPerPage;
   const apiLang = toTcgdexApiLang(lang);
   const { getCachedCardsByName, setCachedCardsByName } = await import('./cardDataCache');
-  const cached = await getCachedCardsByName(apiLang, name, exact);
+  const canUseCache = page == null && itemsPerPage == null;
+  const cached = canUseCache ? await getCachedCardsByName(apiLang, name, exact) : null;
   if (cached != null) return cached;
   const filter = exact ? `name=eq:${encodeURIComponent(name)}` : `name=${encodeURIComponent(name)}`;
-  const url = `${BASE}/${apiLang}/cards?${filter}`;
+  const paginationParts: string[] = [];
+  if (page != null) paginationParts.push(`pagination:page=${encodeURIComponent(String(page))}`);
+  if (itemsPerPage != null) paginationParts.push(`pagination:itemsPerPage=${encodeURIComponent(String(itemsPerPage))}`);
+  const pagination = paginationParts.length ? `&${paginationParts.join('&')}` : '';
+  const url = `${BASE}/${apiLang}/cards?${filter}${pagination}`;
   const cards = await fetchJson<TCGdexCardBrief[]>(url);
-  await setCachedCardsByName(apiLang, name, exact, cards).catch(() => {});
+  if (canUseCache) await setCachedCardsByName(apiLang, name, exact, cards).catch(() => {});
   return cards;
 }
 

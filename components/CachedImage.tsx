@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Image, Pressable, StyleSheet, Text, View, type ImageStyle } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View, type ImageStyle, type StyleProp } from 'react-native';
 import { getOrDownloadImageUri } from '@/src/lib/imageCache';
 import { getAnyOverrideUri } from '@/src/lib/cardImageOverrides';
 import { getCloudAdminImageUrl } from '@/src/lib/cardImageCloud';
@@ -8,7 +8,7 @@ import { getFallbackCardImageUrl } from '@/src/lib/pokemonTcgApi';
 type CachedImageProps = {
   /** Remote image URI (e.g. TCGdex). Cached locally after first load. */
   remoteUri: string | null | undefined;
-  style?: ImageStyle;
+  style?: StyleProp<ImageStyle>;
   resizeMode?: 'contain' | 'cover' | 'stretch' | 'center';
   /** Card id for local overrides (user/admin). When set, override is shown if present. */
   cardId?: string;

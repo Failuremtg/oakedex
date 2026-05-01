@@ -22,6 +22,7 @@ import { BINDER_COLOR_OPTIONS } from '@/src/constants/binderColors';
 import { LANGUAGE_OPTIONS, type TCGdexLang } from '@/src/lib/tcgdex';
 import { getSpeciesWithCache } from '@/src/lib/cardDataCache';
 import { getPokemonSpriteUrl } from '@/src/constants/collectionIcons';
+import { useIsSubscriber } from '@/src/subscription/SubscriptionContext';
 import type { EditionFilter, PokemonSummary } from '@/src/types';
 
 const NUM_COLUMNS = 3;
@@ -36,6 +37,7 @@ export default function NewSingleScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user } = useAuth();
+  const isSubscriber = useIsSubscriber();
   const [list, setList] = useState<PokemonSummary[]>([]);
   const [filter, setFilter] = useState('');
   const [loading, setLoading] = useState(true);
@@ -91,6 +93,13 @@ export default function NewSingleScreen() {
 
   const onCreateBinder = useCallback(async () => {
     if (!selectedPokemon || creating || !selectedColorId) return;
+    if (!isSubscriber) {
+      const collections = await loadCollectionsForDisplay().catch(() => []);
+      if (collections.length >= 3) {
+        router.push('/paywall');
+        return;
+      }
+    }
     setCreating(true);
     const name = binderName.trim() || selectedPokemon.name;
     const coll = await createCollection('single_pokemon', name, {
@@ -104,7 +113,7 @@ export default function NewSingleScreen() {
     setCreating(false);
     setSelectedPokemon(null);
     router.replace(`/binder/${coll.id}?edit=1`);
-  }, [selectedPokemon, binderName, includeRegionalForms, selectedLanguages, editionFilter, selectedColorId, creating, router]);
+  }, [selectedPokemon, binderName, includeRegionalForms, selectedLanguages, editionFilter, selectedColorId, creating, router, isSubscriber]);
 
   const toggleLanguage = useCallback((langId: TCGdexLang) => {
     setSelectedLanguages((prev) =>
@@ -160,7 +169,6 @@ export default function NewSingleScreen() {
                       style={styles.sprite}
                       resizeMode="contain"
                       onError={() => markSpriteError(item.dexId)}
-                      pointerEvents="none"
                     />
                   )}
                   <Text style={styles.pokemonName} numberOfLines={2} pointerEvents="none">

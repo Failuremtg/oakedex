@@ -143,6 +143,9 @@ export async function getCollectionProgress(c: Collection): Promise<CollectionPr
   if (c.type === 'custom') {
     return { filled, total: c.slots.length };
   }
+  if (c.type === 'graded') {
+    return { filled, total: c.slots.length };
+  }
 
   return { filled, total: null };
 }

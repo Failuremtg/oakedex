@@ -30,6 +30,7 @@ export function getCollectionDisplayName(c: Collection): string {
   if (c.type === 'single_pokemon') return c.singlePokemonName ?? c.name ?? 'Binder';
   if (c.type === 'by_set') return c.setName ?? c.name ?? 'Set';
   if (c.type === 'custom') return c.name || 'Custom binder';
+  if (c.type === 'graded') return c.name || 'Graded collection';
   return c.name || 'Binder';
 }
 
@@ -50,6 +51,9 @@ export function getCollectionSubtitle(c: Collection): string {
   if (c.type === 'custom') {
     return (c.customPokemonNames?.length ?? 0) > 0 ? 'Multi-Pokémon custom' : 'Custom binder';
   }
+  if (c.type === 'graded') {
+    return 'Graded card collection';
+  }
   return 'Collection';
 }
 
@@ -62,5 +66,6 @@ export function getCollectionIconUri(c: Collection): string {
   }
   if (c.type === 'by_set') return normalizeTcgdexImageUrl(c.setSymbol) ?? POKE_BALL_ICON_BW_SENTINEL;
   if (c.type === 'custom') return PREMIER_BALL_ICON;
+  if (c.type === 'graded') return PREMIER_BALL_ICON;
   return POKE_BALL_ICON;
 }

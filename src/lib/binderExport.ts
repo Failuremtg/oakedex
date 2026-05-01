@@ -136,11 +136,11 @@ export async function exportBinderToPdfAndShare(options: ExportOptions): Promise
       height: 842,
       base64: false,
     });
-    const canShare = await shareAsync(uri, {
+    await shareAsync(uri, {
       mimeType: 'application/pdf',
       dialogTitle: `Export: ${options.binderName}`,
     });
-    return { success: !!canShare };
+    return { success: true };
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     return { success: false, error: message };

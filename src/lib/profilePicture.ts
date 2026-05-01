@@ -2,7 +2,7 @@
  * Profile picture preference: either a trainer sprite ID or a custom image URI (saved locally).
  */
 
-import * as FileSystem from 'expo-file-system';
+import { copyAsync, documentDirectory } from 'expo-file-system/legacy';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 
@@ -34,6 +34,7 @@ export async function setProfilePicturePref(pref: ProfilePicturePref): Promise<v
 export async function pickAndSaveCustomPhoto(): Promise<string | null> {
   const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
   if (status !== 'granted') return null;
+  if (!documentDirectory) return null;
   const result = await ImagePicker.launchImageLibraryAsync({
     mediaTypes: ['images'],
     allowsEditing: true,
@@ -41,8 +42,8 @@ export async function pickAndSaveCustomPhoto(): Promise<string | null> {
     quality: 0.9,
   });
   if (result.canceled || !result.assets?.[0]?.uri) return null;
-  const dest = `${FileSystem.documentDirectory}${PROFILE_PHOTO_FILENAME}`;
-  await FileSystem.copyAsync({ from: result.assets[0].uri, to: dest });
+  const dest = `${documentDirectory}${PROFILE_PHOTO_FILENAME}`;
+  await copyAsync({ from: result.assets[0].uri, to: dest });
   await setProfilePicturePref({ type: 'custom', uri: dest });
   return dest;
 }
